@@ -232,12 +232,23 @@
         .details-layout { display: flex; flex-direction: column; }
         @media (min-width: 600px) { .details-layout { flex-direction: row; } }
         
-        .details-poster { flex: 0 0 320px; }
-        .details-poster img {
-            width: 100%; height: 100%; object-fit: cover;
-            border-top-left-radius: var(--border-radius);
+        .details-poster { 
+            flex: 0 0 320px; 
+            align-self: flex-start; /* Не дает постеру растягиваться вслед за длинным текстом */
         }
-        @media (min-width: 600px) { .details-poster img { border-bottom-left-radius: var(--border-radius); border-top-right-radius: 0; } }
+        .details-poster img {
+            width: 100%; 
+            height: auto; /* Позволяет картинке принять свою естественную высоту */
+            object-fit: contain; /* Гарантирует, что картинка поместится целиком */
+            border-top-left-radius: var(--border-radius);
+            border-top-right-radius: var(--border-radius); /* Скругление для мобилок */
+        }
+        @media (min-width: 600px) { 
+            .details-poster img { 
+                border-bottom-left-radius: var(--border-radius); 
+                border-top-right-radius: 0; 
+            } 
+        }
 
         .details-info { padding: 35px; flex: 1; display: flex; flex-direction: column; }
         .details-info h2 { font-size: 36px; margin: 0 0 15px; font-weight: 700; line-height: 1.1; }
