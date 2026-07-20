@@ -189,6 +189,9 @@
             currentCategory = cat;
             currentFilter = 'main'; // Сбрасываем фильтр сайдбара на Главную
             
+            // Показываем табы обратно, так как мы вернулись на Главную
+            document.querySelector('.tabs').style.display = 'flex';
+            
             // Обновляем активный таб в шапке
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             el.classList.add('active');
@@ -205,10 +208,17 @@
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
             
+            // Скрываем табы, если открыт любой список кроме "Главной страницы"
+            const tabsContainer = document.querySelector('.tabs');
+            if (filterType === 'main') {
+                tabsContainer.style.display = 'flex';
+            } else {
+                tabsContainer.style.display = 'none';
+            }
+            
             if(window.innerWidth <= 768) toggleSidebar(); // Закрываем меню на мобилках
             render();
         }
-
         function generateCustomLists() {
             const listSet = new Set();
             allData.forEach(item => {
