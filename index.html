@@ -213,31 +213,110 @@
         gap: 10px;
         justify-content: center;
         margin-bottom: 25px;
-    }
-    
-    .filter-btn {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: #a0a5b5;
-        padding: 6px 16px;
-        border-radius: 20px;
+        }
+        
+        .filter-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #a0a5b5;
+            padding: 6px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+        
+        .filter-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+        
+        .filter-btn.active {
+            background: #e50914; /* Красный акцент */
+            border-color: #e50914;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(229, 9, 20, 0.3);
+        }
+            .glass-filter-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        padding: 10px 25px;
+        border-radius: 30px;
         cursor: pointer;
-        font-size: 14px;
-        transition: all 0.3s ease;
-        backdrop-filter: blur(5px);
-    }
-    
-    .filter-btn:hover {
-        background: rgba(255, 255, 255, 0.15);
-        color: #fff;
-    }
-    
-    .filter-btn.active {
-        background: #e50914; /* Красный акцент */
-        border-color: #e50914;
-        color: #fff;
-        box-shadow: 0 4px 15px rgba(229, 9, 20, 0.3);
-    }
+        backdrop-filter: blur(10px);
+        font-size: 16px;
+        transition: 0.3s;
+                }
+                .glass-filter-btn:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                }
+                .glass-panel {
+                    background: rgba(20, 20, 25, 0.7);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(15px);
+                    border-radius: 15px;
+                    padding: 20px;
+                    margin: 0 auto 30px;
+                    max-width: 600px;
+                    animation: fadeIn 0.3s ease;
+                }
+                .filter-section h4 {
+                    margin: 0 0 10px 0;
+                    color: #a0a5b5;
+                }
+                .checkbox-grid {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                    margin-bottom: 20px;
+                }
+                .checkbox-label {
+                    display: flex;
+                    align-items: center;
+                    gap: 5px;
+                    color: #fff;
+                    background: rgba(255, 255, 255, 0.05);
+                    padding: 5px 12px;
+                    border-radius: 15px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    transition: 0.2s;
+                }
+                .checkbox-label:hover {
+                    background: rgba(255, 255, 255, 0.15);
+                }
+                .checkbox-label input {
+                    accent-color: #e50914;
+                }
+                .glass-search-btn {
+                    width: 100%;
+                    background: #e50914;
+                    color: white;
+                    border: none;
+                    padding: 12px;
+                    border-radius: 10px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    font-size: 16px;
+                }
+                .meta-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                    margin: 10px 0;
+                }
+                .meta-badge {
+                    background: rgba(255, 255, 255, 0.2);
+                    padding: 3px 8px;
+                    border-radius: 5px;
+                    font-size: 14px;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
     </style>
 </head>
 <body>
@@ -257,10 +336,32 @@
     <div id="mediaGrid" class="media-grid">
     <!-- Здесь генерируются карточки -->
     </div>
+    <div class="tabs">
+    <button class="tab active" id="tab-movies" onclick="switchTab('movies')">Фильмы</button>
+    <button class="tab" id="tab-series" onclick="switchTab('series')">Сериалы</button>
+    <button class="tab" id="tab-cartoons" onclick="switchTab('cartoons')">Мультфильмы</button>
+</div>
+
+<!-- Кнопка вызова фильтра -->
+<div style="text-align: center; margin: 20px 0;">
+    <button id="toggleFilterBtn" class="glass-filter-btn" onclick="toggleFilter()">Фильтры ⧨</button>
+</div>
+
+<!-- Панель фильтров -->
+<div id="filterPanel" class="glass-panel" style="display: none;">
+    <div class="filter-section">
+        <h4>Жанры</h4>
+        <div id="genreCheckboxes" class="checkbox-grid"></div>
+    </div>
+    <div class="filter-section">
+        <h4>Год выпуска</h4>
+        <div id="yearCheckboxes" class="checkbox-grid"></div>
+    </div>
+    <button class="glass-search-btn" onclick="applyFilters()">Поиск</button>
+</div>
         <div class="media-grid" id="mediaGrid"></div>
     </main>
 
-    <!-- Модальное окно только для просмотра -->
     <div class="modal-overlay" id="detailsModal" onclick="closeOnOverlayClick(event, 'detailsModal')">
         <div class="modal-content details-layout">
             <span class="close-btn" onclick="closeModal('detailsModal')">&times;</span>
@@ -269,6 +370,10 @@
             </div>
             <div class="details-info">
                 <h2 id="detailTitle">Название</h2>
+                <div class="meta-info">
+                <span id="detailYear" class="meta-badge">Год</span>
+                <span id="detailRating" style="color: #FFD700; font-size: 1.2rem;">★★★★★</span>
+                </div>
                 <div class="hashtags" id="detailTags"></div>
                 <div id="detailDesc">Описание</div>
                 <div class="section-title">Чем мне понравилось:</div>
@@ -278,12 +383,13 @@
     </div>
 
     <script>
-        // ВСТАВЬ СЮДА СВОЙ URL ИЗ GOOGLE APPS SCRIPT
-const API_URL = 'https://script.google.com/macros/s/AKfycbxdfynb-Smux0tyeX4OWNTZocMniyXvL2GIAfJ8YQJP-LZ5IvdUIjjxUeXfBJn6PY9e/exec'; 
 
-let collections = { movies: [], series: [] };
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxdfynb-Smux0tyeX4OWNTZocMniyXvL2GIAfJ8YQJP-LZ5IvdUIjjxUeXfBJn6PY9e/exec'; 
+
+
+let collections = { movies: [], series: [], cartoons: [] };
 let currentTab = 'movies';
-let currentGenre = 'all'; // Новая переменная для хранения выбранного жанра
+let activeFilters = { genres: [], years: [] };
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('mediaGrid').innerHTML = '<h3 style="text-align:center; width:100%; color:#a0a5b5;">Загрузка данных...</h3>';
@@ -297,100 +403,105 @@ async function loadData() {
         
         collections.movies = data.filter(item => item.type === 'movies');
         collections.series = data.filter(item => item.type === 'series');
+        collections.cartoons = data.filter(item => item.type === 'cartoons');
         
-        renderFilters(); // Генерируем кнопки жанров
-        renderGrid();    // Рисуем сетку
+        generateFilterOptions();
+        renderGrid(collections[currentTab]);
     } catch (error) {
         console.error("Ошибка загрузки:", error);
-        document.getElementById('mediaGrid').innerHTML = '<h3 style="text-align:center; width:100%; color:red;">Ошибка подключения к базе</h3>';
     }
 }
 
 function switchTab(tabName) {
     currentTab = tabName;
-    currentGenre = 'all'; // Сбрасываем фильтр при переключении вкладки
-    
     document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
     document.getElementById(`tab-${tabName}`).classList.add('active');
     
-    renderFilters(); // Перерисовываем кнопки под новую категорию
-    renderGrid();
+    // Сброс фильтров при смене вкладки
+    activeFilters = { genres: [], years: [] };
+    document.getElementById('filterPanel').style.display = 'none';
+    
+    generateFilterOptions();
+    renderGrid(collections[currentTab]);
 }
 
-// НОВАЯ ФУНКЦИЯ: Генерация кнопок фильтров
-function renderFilters() {
-    const filtersContainer = document.getElementById('genreFilters');
-    filtersContainer.innerHTML = '';
+function toggleFilter() {
+    const panel = document.getElementById('filterPanel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
 
-    // Собираем все уникальные жанры
-    const allGenres = new Set();
+function generateFilterOptions() {
+    const genresSet = new Set();
+    const yearsSet = new Set();
+
     collections[currentTab].forEach(item => {
         if (item.genres) {
             item.genres.split(',').forEach(g => {
-                // Очищаем от пробелов, приводим к нижнему регистру и убираем решетки
-                const cleanGenre = g.trim().toLowerCase().replace('#', '');
-                if (cleanGenre) allGenres.add(cleanGenre);
+                const clean = g.trim().toLowerCase().replace('#', '');
+                if (clean) genresSet.add(clean);
             });
         }
+        if (item.year) yearsSet.add(item.year);
     });
 
-    // Создаем кнопку "Все"
-    const allBtn = document.createElement('button');
-    allBtn.className = `filter-btn ${currentGenre === 'all' ? 'active' : ''}`;
-    allBtn.textContent = 'Все';
-    allBtn.onclick = () => filterByGenre('all');
-    filtersContainer.appendChild(allBtn);
+    const genresContainer = document.getElementById('genreCheckboxes');
+    genresContainer.innerHTML = Array.from(genresSet).sort().map(genre => `
+        <label class="checkbox-label">
+            <input type="checkbox" value="${genre}" class="genre-cb"> 
+            ${genre.charAt(0).toUpperCase() + genre.slice(1)}
+        </label>
+    `).join('');
 
-    // Создаем кнопки для каждого найденного жанра
-    Array.from(allGenres).sort().forEach(genre => {
-        const btn = document.createElement('button');
-        btn.className = `filter-btn ${currentGenre === genre ? 'active' : ''}`;
-        // Делаем первую букву заглавной для красоты
-        btn.textContent = genre.charAt(0).toUpperCase() + genre.slice(1);
-        btn.onclick = () => filterByGenre(genre);
-        filtersContainer.appendChild(btn);
-    });
+    const yearsContainer = document.getElementById('yearCheckboxes');
+    yearsContainer.innerHTML = Array.from(yearsSet).sort((a,b) => b - a).map(year => `
+        <label class="checkbox-label">
+            <input type="checkbox" value="${year}" class="year-cb"> 
+            ${year}
+        </label>
+    `).join('');
 }
 
-// НОВАЯ ФУНКЦИЯ: Применение фильтра
-function filterByGenre(genre) {
-    currentGenre = genre;
-    renderFilters(); // Обновляем подсветку активной кнопки
-    renderGrid();    // Перерисовываем фильмы
-}
-
-// ОБНОВЛЕННАЯ ФУНКЦИЯ: Отрисовка с учетом фильтра
-function renderGrid() {
-    const grid = document.getElementById('mediaGrid');
-    grid.innerHTML = ''; 
+function applyFilters() {
+    // Собираем отмеченные чекбоксы
+    const selectedGenres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
+    const selectedYears = Array.from(document.querySelectorAll('.year-cb:checked')).map(cb => cb.value);
     
-    // Берем массив текущей вкладки
-    let activeArray = collections[currentTab];
+    let filteredData = collections[currentTab];
 
-    // Если выбран конкретный жанр, фильтруем массив
-    if (currentGenre !== 'all') {
-        activeArray = activeArray.filter(item => {
+    if (selectedGenres.length > 0) {
+        filteredData = filteredData.filter(item => {
             if (!item.genres) return false;
             const itemGenres = item.genres.split(',').map(g => g.trim().toLowerCase().replace('#', ''));
-            return itemGenres.includes(currentGenre);
+            // Проверяем, есть ли хотя бы один выбранный жанр
+            return selectedGenres.some(g => itemGenres.includes(g));
         });
     }
-    
-    // Переворачиваем, чтобы новые добавления были сверху
-    activeArray = [...activeArray].reverse(); 
 
-    if (activeArray.length === 0) {
-        grid.innerHTML = '<p style="color:#a0a5b5; text-align:center; width:100%;">В этой категории пока ничего нет</p>';
+    if (selectedYears.length > 0) {
+        filteredData = filteredData.filter(item => selectedYears.includes(String(item.year)));
+    }
+
+    // Скрываем панель и отрисовываем
+    document.getElementById('filterPanel').style.display = 'none';
+    renderGrid(filteredData);
+}
+
+function renderGrid(dataArray) {
+    const grid = document.getElementById('mediaGrid');
+    grid.innerHTML = ''; 
+    const reversedArray = [...dataArray].reverse();
+
+    if (reversedArray.length === 0) {
+        grid.innerHTML = '<p style="color:#a0a5b5; text-align:center; width:100%;">Ничего не найдено</p>';
         return;
     }
 
-    activeArray.forEach(item => {
+    reversedArray.forEach(item => {
         const card = document.createElement('div');
         card.className = 'media-card';
         card.onclick = () => showDetails(item.id);
-
         card.innerHTML = `
-            <img src="${item.poster}" alt="${item.title}" onerror="this.src='https://placehold.co/400x600/1a1a1a/e50914?text=Нет+постера'">
+            <img src="${item.poster}" alt="${item.title}">
             <div class="overlay"><h3>${item.title}</h3></div>
         `;
         grid.appendChild(card);
@@ -403,11 +514,16 @@ function showDetails(id) {
 
     document.getElementById('detailPoster').src = item.poster;
     document.getElementById('detailTitle').textContent = item.title;
-    document.getElementById('detailDesc').textContent = item.description;
-    document.getElementById('detailReview').textContent = item.review;
+    document.getElementById('detailDesc').textContent = item.description || 'Нет описания';
+    document.getElementById('detailReview').textContent = item.review || 'Нет отзыва';
+    
+    // Вставляем год и звезды
+    document.getElementById('detailYear').textContent = item.year ? `${item.year} год` : '';
+    const ratingNum = parseInt(item.rating) || 0;
+    document.getElementById('detailRating').textContent = ratingNum ? '★'.repeat(ratingNum) + '☆'.repeat(5 - ratingNum) : '';
 
     const tagsContainer = document.getElementById('detailTags');
-    const tagsArray = item.genres.split(',').map(tag => tag.trim()).filter(tag => tag);
+    const tagsArray = (item.genres || '').split(',').map(tag => tag.trim()).filter(tag => tag);
     tagsContainer.innerHTML = tagsArray.map(tag => `<span class="hashtag">${tag.startsWith('#') ? tag : `#${tag}`}</span>`).join('');
 
     openModal('detailsModal');
@@ -426,17 +542,6 @@ function closeModal(modalId) {
     setTimeout(() => modal.style.display = 'none', 300);
     document.body.style.overflow = 'auto';
 }
-
-function closeOnOverlayClick(event, modalId) {
-    if (event.target.id === modalId) closeModal(modalId);
-}
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        const activeModal = document.querySelector('.modal-overlay.active');
-        if (activeModal) closeModal(activeModal.id);
-    }
-});
     </script>
 </body>
 </html>
