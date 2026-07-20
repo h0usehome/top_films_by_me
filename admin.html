@@ -6,83 +6,185 @@
     <title>Админ-панель</title>
     <style>
         :root {
-            --bg: #0f111a; --surface: rgba(30, 30, 45, 0.7);
+            --bg: #141414; --surface: #1f1f1f;
             --primary: #e50914; --text: #ffffff;
+            --muted: #808080;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        body { background: var(--bg); color: var(--text); padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .glass { background: var(--surface); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; padding: 25px; margin-bottom: 30px; }
-        h1, h2 { text-align: center; margin-bottom: 20px; }
-        form { display: flex; flex-direction: column; gap: 15px; }
-        input, select, textarea { width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; }
-        .row { display: flex; gap: 15px; }
+        body { background: var(--bg); color: var(--text); padding: 40px 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        
+        /* Вкладки навигации */
+        .admin-nav { display: flex; gap: 15px; margin-bottom: 30px; justify-content: center; }
+        .nav-tab { padding: 12px 25px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 16px; transition: 0.3s; border: 1px solid transparent; }
+        .nav-tab.active { background: rgba(229, 9, 20, 0.1); border-color: var(--primary); color: var(--text); }
+        .nav-tab:hover:not(.active) { background: rgba(255,255,255,0.1); }
+        
+        .section { display: none; }
+        .section.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .panel { background: var(--surface); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 30px; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h1 { text-align: center; margin-bottom: 20px; font-weight: 800; letter-spacing: 1px; }
+        h2 { text-align: center; margin-bottom: 25px; font-size: 20px; color: var(--muted); }
+        
+        form { display: flex; flex-direction: column; gap: 20px; }
+        input, select, textarea { width: 100%; padding: 14px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 15px; transition: 0.3s; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+        .row { display: flex; gap: 15px; align-items: center; }
         .row > * { flex: 1; }
-        button { padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; color: white; }
-        .btn-main { background: var(--primary); }
-        .btn-main:hover { background: #ff0f1a; }
-        .btn-cancel { background: #555; display: none; }
-        .item { display: flex; justify-content: space-between; background: rgba(0,0,0,0.4); padding: 10px; margin-bottom: 10px; border-radius: 8px; }
+        textarea { min-height: 100px; resize: vertical; }
+        
+        button { padding: 15px; border-radius: 8px; border: none; font-weight: 600; font-size: 15px; cursor: pointer; transition: 0.3s; color: white; }
+        .btn-main { background: var(--primary); width: 100%; }
+        .btn-main:hover { background: #f40612; }
+        .btn-cancel { background: #333; display: none; width: 100%; }
+        .btn-cancel:hover { background: #444; }
+
+        /* Чекбоксы в виде тегов (Жанры и Списки) */
+        .tag-group { border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; background: rgba(0,0,0,0.2); }
+        .tag-group-title { font-size: 13px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; font-weight: 600; }
+        .tags-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+        
+        .tag-checkbox { display: inline-block; cursor: pointer; }
+        .tag-checkbox input { display: none; }
+        .tag-checkbox span { display: inline-block; padding: 6px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; font-size: 14px; transition: 0.2s; user-select: none; }
+        .tag-checkbox input:checked + span { background: var(--primary); border-color: var(--primary); color: white; }
+        .tag-checkbox:hover span { background: rgba(255,255,255,0.15); }
+
+        .add-list-row { display: flex; gap: 10px; }
+        .add-list-row input { padding: 10px; font-size: 14px; }
+        .add-list-row button { padding: 10px 20px; width: auto; background: #333; }
+        .add-list-row button:hover { background: #444; }
+
+        /* Одиночный переключатель (ТОП-100) */
+        .switch-label { display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; user-select: none; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }
+        .switch-label input { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; }
+
+        /* Список базы данных */
+        .item { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
         .item-info { display: flex; gap: 15px; align-items: center; }
-        .item-info img { width: 40px; height: 60px; object-fit: cover; }
+        .item-info img { width: 45px; height: 65px; object-fit: cover; border-radius: 4px; }
+        .item-title { font-weight: 600; font-size: 16px; margin-bottom: 4px; }
+        .item-meta { color: var(--muted); font-size: 13px; }
+        
         .actions { display: flex; gap: 10px; }
-        .actions button { 
-            padding: 8px 15px; 
-            font-size: 14px; 
-            border-radius: 8px; 
-            display: flex; 
-            align-items: center; 
-            gap: 8px; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-        .btn-edit { background: #4caf50; }
-        .btn-del { background: var(--primary); }
+        .actions button { padding: 8px 12px; font-size: 13px; border-radius: 6px; display: flex; align-items: center; gap: 6px; width: auto; }
+        .btn-edit { background: #2b2b2b; color: #fff; }
+        .btn-edit:hover { background: #404040; }
+        .btn-del { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+        .btn-del:hover { background: var(--primary); color: white; }
+
+        /* Drag and Drop ТОП-100 */
+        .drag-item { display: flex; align-items: center; gap: 15px; background: var(--surface); padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); cursor: grab; }
+        .drag-item:active { cursor: grabbing; border-color: var(--primary); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .drag-rank { font-size: 24px; font-weight: 900; color: #444; width: 40px; text-align: center; }
+        .drag-item img { width: 40px; height: 60px; object-fit: cover; border-radius: 4px; pointer-events: none; }
+        .drag-title { font-weight: bold; flex: 1; pointer-events: none; }
+        .drag-handle { color: var(--muted); font-size: 20px; padding: 0 10px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⚙️ Управление коллекцией</h1>
-        <div class="glass">
-            <h2 id="formTitle">Добавить запись</h2>
-            <form id="adminForm">
-                <select id="f_type" required>
-                    <option value="movies">Фильм</option><option value="series">Сериал</option><option value="cartoons">Мультфильм</option>
-                </select>
-                <input type="text" id="f_title" placeholder="Название" required>
-                <input type="url" id="f_poster" placeholder="Ссылка на постер" required>
-                <div class="row">
-                    <input type="number" id="f_year" placeholder="Год" required>
-                    <select id="f_rating" required>
-                        <option value="" disabled selected>Оценка</option>
-                        <option value="5">5 звезд</option><option value="4">4 звезды</option>
-                        <option value="3">3 звезды</option><option value="2">2 звезды</option><option value="1">1 звезда</option>
+        <h1>⚙️ Управление панелью</h1>
+        
+        <!-- Навигация -->
+        <div class="admin-nav">
+            <div class="nav-tab active" onclick="switchTab('crud')">База и Добавление</div>
+            <div class="nav-tab" onclick="switchTab('top100')">Редактор ТОП-100</div>
+        </div>
+        
+        <!-- Раздел 1: Управление базой -->
+        <div id="crud-section" class="section active">
+            <div class="panel">
+                <h2 id="formTitle">Добавить новую запись</h2>
+                <form id="adminForm">
+                    <select id="f_type" required>
+                        <option value="movies">Фильм</option>
+                        <option value="series">Сериал</option>
+                        <option value="cartoons">Мультфильм</option>
                     </select>
-                </div>
-                <input type="text" id="f_genres" placeholder="Жанры">
-                <div class="row">
-                    <input type="number" id="f_topRank" placeholder="Место в ТОП-100 (оставьте пустым если не в топе)">
-                    <input type="text" id="f_customLists" placeholder="Списки через запятую (напр: Любимое, Комедии)">
-                </div>
-                <textarea id="f_desc" placeholder="Описание"></textarea>
-                <textarea id="f_review" placeholder="Отзыв"></textarea>
+                    <input type="text" id="f_title" placeholder="Название" required>
+                    <input type="url" id="f_poster" placeholder="Ссылка на постер (URL)" required>
+                    
+                    <div class="row">
+                        <input type="number" id="f_year" placeholder="Год выпуска" required>
+                        <select id="f_rating" required>
+                            <option value="" disabled selected>Моя оценка</option>
+                            <option value="5">★★★★★ (5)</option>
+                            <option value="4">★★★★☆ (4)</option>
+                            <option value="3">★★★☆☆ (3)</option>
+                            <option value="2">★★☆☆☆ (2)</option>
+                            <option value="1">★☆☆☆☆ (1)</option>
+                        </select>
+                    </div>
+
+                    <!-- Выбор жанров (Теги) -->
+                    <div class="tag-group">
+                        <div class="tag-group-title">Жанры (выберите один или несколько)</div>
+                        <div class="tags-container" id="genresContainer">
+                            <!-- Заполняется через JS -->
+                        </div>
+                    </div>
+
+                    <!-- Выбор списков/подборок -->
+                    <div class="tag-group">
+                        <div class="tag-group-title">Подборки / Мои списки</div>
+                        <div class="tags-container" id="listsContainer">
+                            <!-- Заполняется через JS -->
+                        </div>
+                        <div class="add-list-row">
+                            <input type="text" id="newListName" placeholder="Название новой подборки">
+                            <button type="button" onclick="addNewList()">Добавить</button>
+                        </div>
+                    </div>
+
+                    <!-- Топ 100 Checkbox -->
+                    <label class="switch-label">
+                        <input type="checkbox" id="f_inTop100">
+                        Добавить в подборку ТОП-100
+                    </label>
+
+                    <textarea id="f_desc" placeholder="Описание сюжета"></textarea>
+                    <textarea id="f_review" placeholder="Личный отзыв"></textarea>
+                    
+                    <div class="row">
+                        <button type="button" id="btnCancel" class="btn-cancel">Отменить</button>
+                        <button type="submit" id="btnSubmit" class="btn-main">Сохранить запись</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="panel">
+                <h2>Общая база</h2>
+                <div id="listContainer" style="text-align: center; color: var(--muted);">Загрузка...</div>
+            </div>
+        </div>
+
+        <!-- Раздел 2: Drag and Drop ТОП-100 -->
+        <div id="top100-section" class="section">
+            <div class="panel">
+                <h2>Перетаскивайте фильмы, чтобы изменить их места</h2>
+                <p style="text-align: center; color: var(--muted); margin-bottom: 20px; font-size: 14px;">
+                    После расстановки не забудьте нажать кнопку "Сохранить порядок" в самом низу.
+                </p>
                 
-                <div class="row">
-                    <button type="button" id="btnCancel" class="btn-cancel">Отмена</button>
-                    <button type="submit" id="btnSubmit" class="btn-main">Сохранить</button>
+                <div id="top100DragContainer">
+                    <!-- Заполняется через JS -->
                 </div>
-            </form>
+                
+                <button type="button" class="btn-main" style="margin-top: 20px;" onclick="saveTop100Order()" id="btnSaveTop">💾 Сохранить новый порядок</button>
+            </div>
         </div>
-        <div class="glass">
-            <h2>База данных</h2>
-            <div id="listContainer">Загрузка...</div>
-        </div>
+
     </div>
 
-   <!-- Подключаем библиотеку Supabase -->
+    <!-- Библиотека Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Библиотека для плавного Drag and Drop (работает и на мобилках) -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
     <script>
-        // Вставь те же самые URL и Key
         const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_KbC2_RFlQ8U5_4kiR3vL4Q_bqAQVHvG';
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -90,74 +192,160 @@
         let currentData = [];
         let editingItem = null;
 
+        // Базовые жанры
+        const STANDARD_GENRES = ['Боевик', 'Комедия', 'Драма', 'Фантастика', 'Триллер', 'Ужасы', 'Мелодрама', 'Детектив', 'Приключения', 'Фэнтези', 'Аниме', 'Документальный'];
+
         async function load() {
             try {
                 const { data, error } = await supabase
                     .from('collection')
                     .select('*')
-                    .order('id', { ascending: false }); // Сортируем: новые сверху
+                    .order('id', { ascending: false });
 
                 if (error) throw error;
-                
                 currentData = data || [];
+                
                 renderList();
+                renderTop100();
+                renderGenres();
+                renderCustomLists();
             } catch (error) {
                 console.error(error);
-                document.getElementById('listContainer').innerHTML = '<p style="color:red;">Ошибка подключения к БД.</p>';
+                document.getElementById('listContainer').innerHTML = '<p style="color:var(--primary);">Ошибка подключения к БД.</p>';
             }
         }
 
+        // --- ЛОГИКА ТЕГОВ (Жанры и Списки) ---
+        function renderGenres() {
+            const container = document.getElementById('genresContainer');
+            container.innerHTML = STANDARD_GENRES.map(g => `
+                <label class="tag-checkbox">
+                    <input type="checkbox" class="cb-genre" value="${g}">
+                    <span>${g}</span>
+                </label>
+            `).join('');
+        }
+
+        function renderCustomLists() {
+            const listSet = new Set();
+            currentData.forEach(i => {
+                if (i.customlists) {
+                    i.customlists.split(',').forEach(l => {
+                        if (l.trim()) listSet.add(l.trim());
+                    });
+                }
+            });
+
+            const container = document.getElementById('listsContainer');
+            container.innerHTML = Array.from(listSet).map(l => createCheckboxHTML(l, 'cb-list')).join('');
+        }
+
+        function createCheckboxHTML(val, className, checked = false) {
+            return `
+                <label class="tag-checkbox">
+                    <input type="checkbox" class="${className}" value="${val}" ${checked ? 'checked' : ''}>
+                    <span>${val}</span>
+                </label>
+            `;
+        }
+
+        function addNewList() {
+            const input = document.getElementById('newListName');
+            const val = input.value.trim();
+            if (!val) return;
+
+            // Проверяем, нет ли уже такого
+            const existing = Array.from(document.querySelectorAll('.cb-list')).map(cb => cb.value.toLowerCase());
+            if (!existing.includes(val.toLowerCase())) {
+                const container = document.getElementById('listsContainer');
+                container.insertAdjacentHTML('beforeend', createCheckboxHTML(val, 'cb-list', true));
+            }
+            input.value = '';
+        }
+
+        // Предотвращаем отправку формы при нажатии Enter в поле "Новая подборка"
+        document.getElementById('newListName').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addNewList();
+            }
+        });
+
+        // --- ЛОГИКА ВКЛАДОК ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabId + '-section').classList.add('active');
+        }
+
+        // --- ОТРИСОВКА БАЗЫ ---
         function renderList() {
-            const html = currentData.map(i => `
+            if (currentData.length === 0) {
+                document.getElementById('listContainer').innerHTML = 'База данных пуста.';
+                return;
+            }
+
+            const html = currentData.map(i => {
+                const typeName = i.type === 'movies' ? 'Фильм' : i.type === 'series' ? 'Сериал' : 'Мультфильм';
+                const isTop = (i.toprank && i.toprank > 0) ? `🏆 Топ-${i.toprank}` : '';
+                return `
                 <div class="item">
                     <div class="item-info">
-                        <img src="${i.poster || ''}">
+                        <img src="${i.poster || ''}" alt="Постер">
                         <div>
-                            <strong>${i.title}</strong><br>
-                            <small>${i.type} | Топ: ${i.topRank || '-'} | Списки: ${i.customLists || '-'}</small>
+                            <div class="item-title">${i.title}</div>
+                            <div class="item-meta">${typeName} • ${isTop} <br> Списки: ${i.customlists || '-'}</div>
                         </div>
                     </div>
                     <div class="actions">
-                        <button class="btn-edit" onclick="edit('${i.id}')">✏️ Изменить</button>
-                        <button class="btn-del" onclick="del('${i.id}')">🗑️ Удалить</button>
+                        <button type="button" class="btn-edit" onclick="edit('${i.id}')">✏️</button>
+                        <button type="button" class="btn-del" onclick="del('${i.id}')">🗑️</button>
                     </div>
                 </div>
-            `).join('');
-            document.getElementById('listContainer').innerHTML = html || 'Пусто';
+                `;
+            }).join('');
+            document.getElementById('listContainer').innerHTML = html;
         }
 
+        // --- СОХРАНЕНИЕ / ДОБАВЛЕНИЕ (CRUD) ---
         document.getElementById('adminForm').onsubmit = async (e) => {
             e.preventDefault();
             const btn = document.getElementById('btnSubmit');
             btn.innerText = 'Сохранение...'; btn.disabled = true;
 
-            // Собираем данные с формы. Пустые строки для чисел превращаем в null
+            // Собираем жанры и списки из чекбоксов
+            const selectedGenres = Array.from(document.querySelectorAll('.cb-genre:checked')).map(cb => cb.value).join(', ');
+            const selectedLists = Array.from(document.querySelectorAll('.cb-list:checked')).map(cb => cb.value).join(', ');
+            
+            // Логика ТОП-100
+            const inTop100 = document.getElementById('f_inTop100').checked;
+            let finalRank = null;
+            if (inTop100) {
+                // Если редактируем и ранг уже был, сохраняем его. Иначе даем 999 (отправится в конец топа)
+                finalRank = (editingItem && editingItem.toprank > 0) ? editingItem.toprank : 999;
+            }
+
             const payload = {
                 type: document.getElementById('f_type').value,
                 title: document.getElementById('f_title').value,
                 poster: document.getElementById('f_poster').value,
                 year: parseInt(document.getElementById('f_year').value) || null,
                 rating: parseInt(document.getElementById('f_rating').value) || null,
-                genres: document.getElementById('f_genres').value,
-                topRank: parseInt(document.getElementById('f_topRank').value) || null,
-                customLists: document.getElementById('f_customLists').value,
+                genres: selectedGenres,
+                customlists: selectedLists,
+                toprank: finalRank,
                 description: document.getElementById('f_desc').value,
                 review: document.getElementById('f_review').value
             };
 
             try {
                 if (editingItem) {
-                    // Обновление существующей записи (UPDATE)
-                    const { error } = await supabase
-                        .from('collection')
-                        .update(payload)
-                        .eq('id', editingItem.id);
+                    const { error } = await supabase.from('collection').update(payload).eq('id', editingItem.id);
                     if (error) throw error;
                 } else {
-                    // Создание новой записи (INSERT)
-                    const { error } = await supabase
-                        .from('collection')
-                        .insert([payload]);
+                    const { error } = await supabase.from('collection').insert([payload]);
                     if (error) throw error;
                 }
 
@@ -165,9 +353,9 @@
                 await load();
             } catch (error) {
                 console.error("Ошибка сохранения:", error);
-                alert("Не удалось сохранить запись. Подробности в консоли.");
+                alert("Ошибка при сохранении. Проверьте консоль.");
             } finally {
-                btn.innerText = 'Сохранить'; 
+                btn.innerText = 'Сохранить запись'; 
                 btn.disabled = false;
             }
         };
@@ -176,35 +364,56 @@
             editingItem = currentData.find(i => String(i.id) === String(id));
             if (!editingItem) return;
             
-            // Заполняем форму данными (убираем привязку к id, так как его нет в форме)
-            const fields = ['type', 'title', 'poster', 'year', 'rating', 'genres', 'topRank', 'customLists', 'description', 'review'];
+            document.getElementById('f_type').value = editingItem.type || 'movies';
+            document.getElementById('f_title').value = editingItem.title || '';
+            document.getElementById('f_poster').value = editingItem.poster || '';
+            document.getElementById('f_year').value = editingItem.year || '';
+            document.getElementById('f_rating').value = editingItem.rating || '';
+            document.getElementById('f_desc').value = editingItem.description || '';
+            document.getElementById('f_review').value = editingItem.review || '';
             
-            fields.forEach(k => {
-                const el = document.getElementById('f_' + k);
-                if(el) el.value = editingItem[k] !== null ? editingItem[k] : '';
-            });
+            // Заполняем жанры
+            document.querySelectorAll('.cb-genre').forEach(cb => cb.checked = false);
+            if (editingItem.genres) {
+                const genresArr = editingItem.genres.split(',').map(s => s.trim());
+                document.querySelectorAll('.cb-genre').forEach(cb => {
+                    if (genresArr.includes(cb.value)) cb.checked = true;
+                });
+            }
+
+            // Заполняем списки
+            document.querySelectorAll('.cb-list').forEach(cb => cb.checked = false);
+            if (editingItem.customlists) {
+                const listsArr = editingItem.customlists.split(',').map(s => s.trim());
+                document.querySelectorAll('.cb-list').forEach(cb => {
+                    if (listsArr.includes(cb.value)) cb.checked = true;
+                });
+            }
+
+            // Чекбокс ТОП-100
+            document.getElementById('f_inTop100').checked = (editingItem.toprank && editingItem.toprank > 0);
             
-            document.getElementById('formTitle').innerText = 'Редактирование';
+            document.getElementById('formTitle').innerText = 'Редактирование записи';
             document.getElementById('btnCancel').style.display = 'block';
-            window.scrollTo(0,0);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            switchTab('crud'); // Автоматически переходим на вкладку формы
         }
 
         function cancel() {
             editingItem = null;
             document.getElementById('adminForm').reset();
-            document.getElementById('formTitle').innerText = 'Добавить запись';
+            
+            // Сбрасываем чекбоксы
+            document.querySelectorAll('.cb-genre, .cb-list').forEach(cb => cb.checked = false);
+
+            document.getElementById('formTitle').innerText = 'Добавить новую запись';
             document.getElementById('btnCancel').style.display = 'none';
         }
 
         async function del(id) {
-            if(!confirm('Точно удалить?')) return;
-            
+            if(!confirm('Точно удалить этот фильм?')) return;
             try {
-                const { error } = await supabase
-                    .from('collection')
-                    .delete()
-                    .eq('id', id);
-                    
+                const { error } = await supabase.from('collection').delete().eq('id', id);
                 if (error) throw error;
                 await load();
             } catch (error) {
@@ -212,8 +421,78 @@
                 alert("Не удалось удалить запись.");
             }
         }
-
         document.getElementById('btnCancel').onclick = cancel;
+
+        // --- ЛОГИКА ТОП-100 И DRAG & DROP ---
+        let sortableInstance = null;
+
+        function renderTop100() {
+            // Фильтруем только те, что в топе, и сортируем по рангу
+            const topData = currentData
+                .filter(i => i.toprank && i.toprank > 0)
+                .sort((a, b) => a.toprank - b.toprank);
+
+            const container = document.getElementById('top100DragContainer');
+            
+            if (topData.length === 0) {
+                container.innerHTML = '<div style="text-align:center; color: var(--muted); padding: 20px;">В ТОП-100 пока нет фильмов. Добавьте их во вкладке "База и Добавление".</div>';
+                return;
+            }
+
+            container.innerHTML = topData.map((item, index) => `
+                <div class="drag-item" data-id="${item.id}">
+                    <div class="drag-handle">☰</div>
+                    <div class="drag-rank">${index + 1}</div>
+                    <img src="${item.poster || ''}" alt="">
+                    <div class="drag-title">${item.title}</div>
+                </div>
+            `).join('');
+
+            // Инициализация Drag and Drop библиотеки
+            if (sortableInstance) sortableInstance.destroy();
+            sortableInstance = new Sortable(container, {
+                animation: 150,
+                handle: '.drag-item',
+                ghostClass: 'sortable-ghost',
+                onEnd: function () {
+                    // Обновляем визуальные цифры после перетаскивания
+                    const items = document.querySelectorAll('#top100DragContainer .drag-item');
+                    items.forEach((item, i) => {
+                        item.querySelector('.drag-rank').innerText = i + 1;
+                    });
+                }
+            });
+        }
+
+        async function saveTop100Order() {
+            const btn = document.getElementById('btnSaveTop');
+            btn.innerText = '⏳ Сохранение...';
+            btn.disabled = true;
+
+            const items = document.querySelectorAll('#top100DragContainer .drag-item');
+            const updates = [];
+
+            // Формируем массив обновлений для каждого перетянутого элемента
+            items.forEach((item, index) => {
+                const id = item.getAttribute('data-id');
+                const newRank = index + 1;
+                updates.push(supabase.from('collection').update({ toprank: newRank }).eq('id', id));
+            });
+
+            try {
+                await Promise.all(updates);
+                alert("Порядок успешно сохранен!");
+                await load(); // Перезагружаем данные
+            } catch (error) {
+                console.error("Ошибка обновления порядка:", error);
+                alert("Ошибка сохранения порядка.");
+            } finally {
+                btn.innerText = '💾 Сохранить новый порядок';
+                btn.disabled = false;
+            }
+        }
+
+        // Первичный запуск
         load();
     </script>
 </body>
