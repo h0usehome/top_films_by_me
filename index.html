@@ -140,7 +140,6 @@
                 <div class="tab" onclick="setCategory('series', this)">Сериалы</div>
                 <div class="tab" onclick="setCategory('cartoons', this)">Мультфильмы</div>
             </div>
-            <!-- Пустой блок для выравнивания флексбокса, если бургер скрыт -->
             <div style="width: 24px;" class="spacer"></div>
         </header>
 
@@ -183,7 +182,7 @@
                 render();
             } catch (error) {
                 console.error("Ошибка Supabase:", error);
-                document.getElementById('contentGrid').innerHTML = '<div class="empty-state" style="color:var(--primary);">Ошибка загрузки базы данных.</div>';
+                document.getElementById('contentGrid').innerHTML = '<div class="empty-state" style="color:var(--primary);">Ошибка загрузки базы данных. Проверьте консоль.</div>';
             }
         }
 
@@ -225,7 +224,6 @@
         function generateCustomLists() {
             const listSet = new Set();
             allData.forEach(item => {
-                // ИСПРАВЛЕНО НА customlists
                 if(item.customlists) {
                     item.customlists.split(',').forEach(l => {
                         const cleanName = l.trim();
@@ -255,15 +253,22 @@
             } else {
                 filtered = [...allData];
                 if (currentFilter === 'top100') {
-                    // ИСПРАВЛЕНО НА toprank
                     filtered = filtered.filter(i => i.toprank && i.toprank > 0).sort((a, b) => a.toprank - b.toprank).slice(0, 100);
                 } else if (currentFilter === 'new') {
                     const sevenDaysAgo = new Date();
                     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                    filtered = filtered.filter(i => i.created_at && new Date(i.created_at) >= sevenDaysAgo);
+                    filtered = filtered.filter(i => {
+                        if (!i.created_at) return false;
+                        const itemDate = new Date(i.created_at);
+                        return !isNaN(itemDate) && itemDate >= sevenDaysAgo;
+                    });
                 } else {
-                    // ИСПРАВЛЕНО НА customlists
-                    filtered = filtered.filter(i => i.customlists && i.customlists.includes(currentFilter));
+                    // Точный поиск по спискам вместо простого .includes()
+                    filtered = filtered.filter(i => {
+                        if (!i.customlists) return false;
+                        const lists = i.customlists.split(',').map(l => l.trim());
+                        return lists.includes(currentFilter);
+                    });
                 }
             }
 
@@ -295,6 +300,12 @@
 
             const typeName = item.type === 'movies' ? 'Фильм' : item.type === 'series' ? 'Сериал' : 'Мультфильм';
             
+            // Разбиваем жанры на отдельные теги для красивого отображения
+            let genresHtml = '';
+            if (item.genres) {
+                genresHtml = item.genres.split(',').map(g => `<span class="tag">${g.trim()}</span>`).join('');
+            }
+            
             document.getElementById('modalBody').innerHTML = `
                 <div class="details-poster">
                     <img src="${item.poster}" alt="Постер">
@@ -305,7 +316,7 @@
                         <span class="tag">${typeName}</span>
                         <span class="tag">${item.year}</span>
                         <span class="tag" style="color: #f5c518;">★ ${item.rating || '-'}</span>
-                        ${item.genres ? `<span class="tag">${item.genres}</span>` : ''}
+                        ${genresHtml}
                     </div>
                     ${item.description ? `
                     <div class="details-section">
