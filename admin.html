@@ -25,7 +25,16 @@
         .item { display: flex; justify-content: space-between; background: rgba(0,0,0,0.4); padding: 10px; margin-bottom: 10px; border-radius: 8px; }
         .item-info { display: flex; gap: 15px; align-items: center; }
         .item-info img { width: 40px; height: 60px; object-fit: cover; }
-        .actions button { padding: 5px 10px; margin-left: 5px; }
+        .actions { display: flex; gap: 10px; }
+        .actions button { 
+            padding: 8px 15px; 
+            font-size: 14px; 
+            border-radius: 8px; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
         .btn-edit { background: #4caf50; }
         .btn-del { background: var(--primary); }
     </style>
@@ -95,8 +104,8 @@
                         </div>
                     </div>
                     <div class="actions">
-                        <button class="btn-edit" onclick="edit(${i.id})">✎</button>
-                        <button class="btn-del" onclick="del(${i.id})">❌</button>
+                        <button class="btn-edit" onclick="edit(${i.id})">✏️</button>
+                        <button class="btn-del" onclick="del(${i.id})">✗</button>
                     </div>
                 </div>
             `).join('');
