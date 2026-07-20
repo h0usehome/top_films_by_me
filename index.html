@@ -5,523 +5,183 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Моя коллекция</title>
     <style>
-        /* =========================================
-           ОБНОВЛЕННЫЕ КРАСОЧНЫЕ ПЕРЕМЕННЫЕ
-           ========================================= */
         :root {
-            --bg-gradient-start: #0f111a;
-            --bg-gradient-end: #1a0b1c;
-            --surface-color: rgba(30, 30, 45, 0.7);
-            --text-color: #ffffff;
-            --text-muted: #a0a5b5;
-            --accent-gradient: linear-gradient(135deg, #ff007a 0%, #7928ca 100%);
-            --glow-color: rgba(121, 40, 202, 0.6);
-            --border-radius: 12px;
-            --transition-speed: 0.3s;
+            --bg-start: #0f111a; --bg-end: #1a0b1c;
+            --glass: rgba(30, 30, 45, 0.7);
+            --primary: #e50914; --text: #ffffff;
+            --sidebar-width: 250px;
         }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end));
-            background-attachment: fixed;
-            color: var(--text-color);
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-
-        /* =========================================
-           ШАПКА
-           ========================================= */
-        header {
-            display: flex;
-            align-items: center;
-            gap: 40px;
-            padding: 20px 40px;
-            background: rgba(15, 17, 26, 0.6);
-            backdrop-filter: blur(15px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-
-        header h1 {
-            font-size: 26px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            background: var(--accent-gradient);
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .nav-tabs { display: flex; gap: 25px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: linear-gradient(135deg, var(--bg-start), var(--bg-end)) fixed; color: var(--text); display: flex; min-height: 100vh; }
         
-        .tab {
-            background: none; border: none;
-            color: var(--text-muted);
-            font-size: 18px; font-weight: 600;
-            cursor: pointer;
-            position: relative;
-            transition: color var(--transition-speed);
+        /* Сайдбар */
+        .sidebar {
+            width: var(--sidebar-width); background: rgba(15, 17, 26, 0.9); backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255,255,255,0.05); padding: 20px 0;
+            display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100;
+            transition: transform 0.3s ease;
         }
-
-        .tab:hover { color: var(--text-color); }
-        .tab.active { color: #ffffff; }
-
-        .tab::after {
-            content: '';
-            position: absolute;
-            bottom: -6px; left: 0;
-            width: 0%; height: 3px;
-            background: var(--accent-gradient);
-            border-radius: 3px;
-            transition: width var(--transition-speed);
-        }
+        .sidebar h3 { padding: 0 20px; color: rgba(255,255,255,0.5); font-size: 12px; text-transform: uppercase; margin: 20px 0 10px; }
+        .nav-item { padding: 12px 20px; color: var(--text); text-decoration: none; display: block; cursor: pointer; transition: 0.2s; }
+        .nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); border-left: 4px solid var(--primary); }
         
-        .tab.active::after { width: 100%; }
-
-        /* =========================================
-           СЕТКА И КАРТОЧКИ
-           ========================================= */
-        main { padding: 30px 40px; }
-
-        .media-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 25px;
-        }
-
-        .media-card {
-            position: relative;
-            border-radius: var(--border-radius);
-            overflow: hidden;
-            cursor: pointer;
-            aspect-ratio: 2 / 3;
-            background-color: #000;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: transform var(--transition-speed), box-shadow var(--transition-speed), border-color var(--transition-speed);
-        }
-
-        .media-card img {
-            width: 100%; height: 100%; object-fit: cover; display: block;
-            transition: opacity var(--transition-speed);
-        }
-
-        .media-card .overlay {
-            position: absolute; bottom: 0; left: 0; right: 0;
-            background: linear-gradient(to top, rgba(79, 13, 117, 0.9) 0%, rgba(0,0,0,0.6) 60%, transparent 100%);
-            padding: 30px 15px 15px;
-            opacity: 0; transition: opacity var(--transition-speed);
-            display: flex; align-items: flex-end;
-        }
-
-        .media-card .overlay h3 {
-            font-size: 18px; margin: 0; text-align: center; width: 100%;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-        }
-
-        .media-card:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 15px 35px var(--glow-color);
-            border-color: rgba(255, 255, 255, 0.2);
-            z-index: 2;
-        }
+        /* Основной контент */
+        .main-content { flex: 1; margin-left: var(--sidebar-width); padding: 20px; transition: margin-left 0.3s ease; }
         
-        .media-card:hover img { opacity: 0.8; }
-        .media-card:hover .overlay { opacity: 1; }
+        /* Шапка */
+        header { display: flex; align-items: center; justify-content: flex-end; position: relative; margin-bottom: 30px; padding: 10px 0; }
+        .burger { display: none; background: none; border: none; color: white; font-size: 24px; cursor: pointer; position: absolute; left: 0; }
+        .tabs { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; background: var(--glass); padding: 5px; border-radius: 12px; }
+        .tab { padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: 500; }
+        .tab.active { background: var(--primary); }
+        .brand { font-size: 24px; font-weight: bold; letter-spacing: 1px; }
 
-        /* =========================================
-           ПАНЕЛЬ ФИЛЬТРОВ
-           ========================================= */
-        .glass-filter-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #fff;
-            padding: 10px 25px;
-            border-radius: 30px;
-            cursor: pointer;
-            backdrop-filter: blur(10px);
-            font-size: 16px;
-            transition: 0.3s;
-        }
-        .glass-filter-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-        .glass-panel {
-            background: rgba(20, 20, 25, 0.7);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(15px);
-            border-radius: 15px;
-            padding: 20px;
-            margin: 0 auto 30px;
-            max-width: 600px;
-            animation: fadeIn 0.3s ease;
-        }
-        .filter-section h4 {
-            margin: 0 0 10px 0;
-            color: #a0a5b5;
-        }
-        .checkbox-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            color: #fff;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 5px 12px;
-            border-radius: 15px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: 0.2s;
-        }
-        .checkbox-label:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
-        .checkbox-label input {
-            accent-color: #e50914;
-        }
-        .glass-search-btn {
-            width: 100%;
-            background: #e50914;
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 16px;
-        }
+        /* Сетка карточек */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+        .card { background: var(--glass); border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: transform 0.3s; }
+        .card:hover { transform: translateY(-5px); border-color: var(--primary); }
+        .card img { width: 100%; height: 240px; object-fit: cover; }
+        .card-info { padding: 10px; }
+        .card-title { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; }
+        .card-meta { font-size: 12px; color: #a0a5b5; margin-top: 5px; }
 
-        /* =========================================
-           МОДАЛЬНОЕ ОКНО
-           ========================================= */
-        .modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px);
-            z-index: 100; justify-content: center; align-items: center;
-            padding: 20px; opacity: 0; transition: opacity var(--transition-speed);
-        }
-
-        .modal-overlay.active { display: flex; opacity: 1; }
-
-        .modal-content {
-            background: var(--surface-color); 
-            backdrop-filter: blur(25px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: var(--border-radius);
-            max-width: 850px; width: 100%; max-height: 90vh; overflow-y: auto;
-            position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.8);
-        }
-
-        .close-btn {
-            position: absolute; top: 15px; right: 20px; font-size: 32px;
-            color: var(--text-muted); cursor: pointer; z-index: 10;
-            transition: color 0.2s, transform 0.2s;
-        }
-        .close-btn:hover { color: #ff007a; transform: scale(1.1); }
-
-        .details-layout { display: flex; flex-direction: column; }
-        @media (min-width: 600px) { .details-layout { flex-direction: row; } }
-        
-        .details-poster { 
-            flex: 0 0 320px; 
-            align-self: flex-start; /* Не дает постеру растягиваться вслед за длинным текстом */
-        }
-        .details-poster img {
-            width: 100%; 
-            height: auto; /* Позволяет картинке принять свою естественную высоту */
-            object-fit: contain; /* Гарантирует, что картинка поместится целиком */
-            border-top-left-radius: var(--border-radius);
-            border-top-right-radius: var(--border-radius); /* Скругление для мобилок */
-        }
-        @media (min-width: 600px) { 
-            .details-poster img { 
-                border-bottom-left-radius: var(--border-radius); 
-                border-top-right-radius: 0; 
-            } 
-        }
-
-        .details-info { padding: 35px; flex: 1; display: flex; flex-direction: column; }
-        .details-info h2 { font-size: 36px; margin: 0 0 15px; font-weight: 700; line-height: 1.1; }
-        
-        .meta-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin: 10px 0;
-        }
-        .meta-badge {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 3px 8px;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-
-        .hashtags { margin-bottom: 25px; display: flex; flex-wrap: wrap; gap: 10px; }
-        .hashtag {
-            background: rgba(255, 0, 122, 0.15); 
-            border: 1px solid rgba(255, 0, 122, 0.3);
-            color: #ffb3d9;
-            padding: 6px 14px;
-            border-radius: 20px; font-size: 13px; font-weight: 600;
-            transition: all var(--transition-speed);
-        }
-        .hashtag:hover {
-            background: var(--accent-gradient);
-            color: white;
-            border-color: transparent;
-            box-shadow: 0 4px 10px rgba(255, 0, 122, 0.4);
-        }
-
-        .section-title {
-            font-size: 20px; color: #fff;
-            margin: 25px 0 10px; padding-bottom: 8px;
-            border-bottom: 2px solid rgba(121, 40, 202, 0.3);
-            font-weight: 600;
-        }
-        
-        #detailDesc, #detailReview {
-            color: rgba(255,255,255,0.85);
-            font-size: 15px;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* Мобильная адаптация */
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .burger { display: block; }
+            header { justify-content: center; flex-direction: column; gap: 15px; margin-top: 15px; }
+            .tabs { position: static; transform: none; width: 100%; justify-content: center; }
+            .brand { display: none; /* Скрываем на мобилках для экономии места или можно оставить */ }
+            .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; }
+            .card img { height: 200px; }
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <h1>Коллекция</h1>
-        <nav class="nav-tabs">
-            <button class="tab active" id="tab-movies" onclick="switchTab('movies')">Фильмы</button>
-            <button class="tab" id="tab-series" onclick="switchTab('series')">Сериалы</button>
-            <button class="tab" id="tab-cartoons" onclick="switchTab('cartoons')">Мультфильмы</button>
-        </nav>
-    </header>
-
-    <main>
-        <!-- Кнопка вызова фильтра -->
-        <div style="text-align: center; margin: 20px 0;">
-            <button id="toggleFilterBtn" class="glass-filter-btn" onclick="toggleFilter()">Фильтры ⧨</button>
-        </div>
-
-        <!-- Панель фильтров -->
-        <div id="filterPanel" class="glass-panel" style="display: none;">
-            <div class="filter-section">
-                <h4>Жанры</h4>
-                <div id="genreCheckboxes" class="checkbox-grid"></div>
-            </div>
-            <div class="filter-section">
-                <h4>Год выпуска</h4>
-                <div id="yearCheckboxes" class="checkbox-grid"></div>
-            </div>
-            <button class="glass-search-btn" onclick="applyFilters()">Поиск</button>
-        </div>
+    <!-- Сайдбар -->
+    <nav class="sidebar" id="sidebar">
+        <div class="nav-item active" onclick="setFilter('main', this)">Главная страница</div>
         
-        <!-- Основная сетка контента -->
-        <div class="media-grid" id="mediaGrid"></div>
+        <h3>Подборки</h3>
+        <div class="nav-item" onclick="setFilter('top100', this)">⭐ ТОП 100</div>
+        <div class="nav-item" onclick="setFilter('new', this)">🔥 Новинки</div>
+        
+        <h3>Мои списки</h3>
+        <div id="dynamicLists"></div>
+    </nav>
+
+    <!-- Основной контент -->
+    <main class="main-content">
+        <header>
+            <button class="burger" onclick="toggleSidebar()">☰</button>
+            <div class="tabs">
+                <div class="tab active" onclick="setCategory('movies', this)">Фильмы</div>
+                <div class="tab" onclick="setCategory('series', this)">Сериалы</div>
+                <div class="tab" onclick="setCategory('cartoons', this)">Мультфильмы</div>
+            </div>
+            <div class="brand">Коллекция</div>
+        </header>
+
+        <div class="grid" id="contentGrid">
+            <p style="text-align: center; grid-column: 1 / -1;">Загрузка данных...</p>
+        </div>
     </main>
 
-    <div class="modal-overlay" id="detailsModal" onclick="closeOnOverlayClick(event, 'detailsModal')">
-        <div class="modal-content details-layout">
-            <span class="close-btn" onclick="closeModal('detailsModal')">&times;</span>
-            <div class="details-poster">
-                <img id="detailPoster" src="" alt="">
-            </div>
-            <div class="details-info">
-                <h2 id="detailTitle">Название</h2>
-                <div class="meta-info">
-                    <span id="detailYear" class="meta-badge">Год</span>
-                    <span id="detailRating" style="color: #FFD700; font-size: 1.2rem;">★★★★★</span>
-                </div>
-                <div class="hashtags" id="detailTags"></div>
-                <div id="detailDesc">Описание</div>
-                <div class="section-title">Чем мне понравилось:</div>
-                <div id="detailReview">Отзыв</div>
-            </div>
-        </div>
-    </div>
-
     <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbxdfynb-Smux0tyeX4OWNTZocMniyXvL2GIAfJ8YQJP-LZ5IvdUIjjxUeXfBJn6PY9e/exec'; 
-
-    let collections = { movies: [], series: [], cartoons: [] };
-    let currentTab = 'movies';
-    let activeFilters = { genres: [], years: [] };
-
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('mediaGrid').innerHTML = '<h3 style="text-align:center; width:100%; color:#a0a5b5;">Загрузка данных...</h3>';
-        loadData();
-    });
-
-    async function loadData() {
-        try {
-            const response = await fetch(API_URL);
-            const data = await response.json();
-            
-            collections.movies = data.filter(item => item.type === 'movies');
-            collections.series = data.filter(item => item.type === 'series');
-            collections.cartoons = data.filter(item => item.type === 'cartoons');
-            
-            generateFilterOptions();
-            renderGrid(collections[currentTab]);
-        } catch (error) {
-            console.error("Ошибка загрузки:", error);
-            document.getElementById('mediaGrid').innerHTML = '<h3 style="text-align:center; width:100%; color:red;">Ошибка подключения к базе</h3>';
-        }
-    }
-
-    function switchTab(tabName) {
-        currentTab = tabName;
-        document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
-        document.getElementById(`tab-${tabName}`).classList.add('active');
+        const API_URL = 'ТВОЙ_WEB_APP_URL';
         
-        // Сброс фильтров при смене вкладки
-        activeFilters = { genres: [], years: [] };
-        document.getElementById('filterPanel').style.display = 'none';
-        
-        generateFilterOptions();
-        renderGrid(collections[currentTab]);
-    }
+        let allData = [];
+        let currentCategory = 'movies'; // movies, series, cartoons
+        let currentFilter = 'main'; // main, top100, new, или название кастомного списка
 
-    function toggleFilter() {
-        const panel = document.getElementById('filterPanel');
-        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    }
+        document.addEventListener('DOMContentLoaded', init);
 
-    function generateFilterOptions() {
-        const genresSet = new Set();
-        const yearsSet = new Set();
-
-        collections[currentTab].forEach(item => {
-            if (item.genres) {
-                item.genres.split(',').forEach(g => {
-                    const clean = g.trim().toLowerCase().replace('#', '');
-                    if (clean) genresSet.add(clean);
-                });
+        async function init() {
+            try {
+                const res = await fetch(API_URL);
+                allData = await res.json();
+                generateCustomLists();
+                render();
+            } catch (error) {
+                document.getElementById('contentGrid').innerHTML = '<p>Ошибка загрузки.</p>';
             }
-            if (item.year) yearsSet.add(item.year);
-        });
+        }
 
-        const genresContainer = document.getElementById('genreCheckboxes');
-        genresContainer.innerHTML = Array.from(genresSet).sort().map(genre => `
-            <label class="checkbox-label">
-                <input type="checkbox" value="${genre}" class="genre-cb"> 
-                ${genre.charAt(0).toUpperCase() + genre.slice(1)}
-            </label>
-        `).join('');
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
 
-        const yearsContainer = document.getElementById('yearCheckboxes');
-        yearsContainer.innerHTML = Array.from(yearsSet).sort((a,b) => b - a).map(year => `
-            <label class="checkbox-label">
-                <input type="checkbox" value="${year}" class="year-cb"> 
-                ${year}
-            </label>
-        `).join('');
-    }
+        function setCategory(cat, el) {
+            currentCategory = cat;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            render();
+        }
 
-    function applyFilters() {
-        const selectedGenres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
-        const selectedYears = Array.from(document.querySelectorAll('.year-cb:checked')).map(cb => cb.value);
-        
-        let filteredData = collections[currentTab];
+        function setFilter(filterType, el) {
+            currentFilter = filterType;
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            el.classList.add('active');
+            if(window.innerWidth <= 768) toggleSidebar(); // Закрываем меню на мобилках после клика
+            render();
+        }
 
-        if (selectedGenres.length > 0) {
-            filteredData = filteredData.filter(item => {
-                if (!item.genres) return false;
-                const itemGenres = item.genres.split(',').map(g => g.trim().toLowerCase().replace('#', ''));
-                return selectedGenres.some(g => itemGenres.includes(g));
+        // Вытаскиваем все уникальные списки из базы
+        function generateCustomLists() {
+            const listSet = new Set();
+            allData.forEach(item => {
+                if(item.customLists) {
+                    item.customLists.split(',').forEach(l => {
+                        const cleanName = l.trim();
+                        if(cleanName) listSet.add(cleanName);
+                    });
+                }
             });
+
+            const container = document.getElementById('dynamicLists');
+            container.innerHTML = Array.from(listSet).map(listName => 
+                `<div class="nav-item" onclick="setFilter('${listName}', this)">📌 ${listName}</div>`
+            ).join('');
         }
 
-        if (selectedYears.length > 0) {
-            filteredData = filteredData.filter(item => selectedYears.includes(String(item.year)));
+        function render() {
+            // 1. Фильтруем по категории (Табы в шапке)
+            let filtered = allData.filter(i => i.type === currentCategory);
+
+            // 2. Применяем фильтры сайдбара
+            if (currentFilter === 'top100') {
+                filtered = filtered.filter(i => i.topRank && i.topRank > 0)
+                                   .sort((a, b) => a.topRank - b.topRank)
+                                   .slice(0, 100);
+            } else if (currentFilter === 'new') {
+                const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                // Если timestamp нет (старые записи), считаем их не новыми
+                filtered = filtered.filter(i => i.timestamp && i.timestamp >= sevenDaysAgo);
+            } else if (currentFilter !== 'main') {
+                // Это кастомный список
+                filtered = filtered.filter(i => i.customLists && i.customLists.includes(currentFilter));
+            }
+
+            // Вывод карточек
+            const grid = document.getElementById('contentGrid');
+            if (filtered.length === 0) {
+                grid.innerHTML = '<p style="text-align: center; grid-column: 1 / -1; color: #a0a5b5;">Ничего не найдено.</p>';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(item => `
+                <div class="card">
+                    <img src="${item.poster}" alt="Постер">
+                    <div class="card-info">
+                        <div class="card-title">${item.title}</div>
+                        <div class="card-meta">${item.year} • ★ ${item.rating}</div>
+                    </div>
+                </div>
+            `).join('');
         }
-
-        document.getElementById('filterPanel').style.display = 'none';
-        renderGrid(filteredData);
-    }
-
-    function renderGrid(dataArray) {
-        const grid = document.getElementById('mediaGrid');
-        grid.innerHTML = ''; 
-        const reversedArray = [...dataArray].reverse();
-
-        if (reversedArray.length === 0) {
-            grid.innerHTML = '<p style="color:#a0a5b5; text-align:center; width:100%;">Ничего не найдено</p>';
-            return;
-        }
-
-        reversedArray.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'media-card';
-            card.onclick = () => showDetails(item.id);
-            card.innerHTML = `
-                <img src="${item.poster}" alt="${item.title}" onerror="this.src='https://placehold.co/400x600/1a1a1a/e50914?text=Нет+постера'">
-                <div class="overlay"><h3>${item.title}</h3></div>
-            `;
-            grid.appendChild(card);
-        });
-    }
-
-    function showDetails(id) {
-        const item = collections[currentTab].find(m => String(m.id) === String(id));
-        if (!item) return;
-
-        document.getElementById('detailPoster').src = item.poster;
-        document.getElementById('detailTitle').textContent = item.title;
-        document.getElementById('detailDesc').textContent = item.description || 'Нет описания';
-        document.getElementById('detailReview').textContent = item.review || 'Нет отзыва';
-        
-        document.getElementById('detailYear').textContent = item.year ? `${item.year} год` : '';
-        const ratingNum = parseInt(item.rating) || 0;
-        document.getElementById('detailRating').textContent = ratingNum ? '★'.repeat(ratingNum) + '☆'.repeat(5 - ratingNum) : '';
-
-        const tagsContainer = document.getElementById('detailTags');
-        const tagsArray = (item.genres || '').split(',').map(tag => tag.trim()).filter(tag => tag);
-        tagsContainer.innerHTML = tagsArray.map(tag => `<span class="hashtag">${tag.startsWith('#') ? tag : `#${tag}`}</span>`).join('');
-
-        openModal('detailsModal');
-    }
-
-    function openModal(modalId) {
-        const modal = document.getElementById(modalId);
-        modal.style.display = 'flex';
-        setTimeout(() => modal.classList.add('active'), 10);
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeModal(modalId) {
-        const modal = document.getElementById(modalId);
-        modal.classList.remove('active');
-        setTimeout(() => modal.style.display = 'none', 300);
-        document.body.style.overflow = 'auto';
-    }
-
-    // Восстановленная функция закрытия по клику на фон
-    function closeOnOverlayClick(event, modalId) {
-        if (event.target.id === modalId) closeModal(modalId);
-    }
-
-    // Восстановленная функция закрытия по клавише Esc
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            const activeModal = document.querySelector('.modal-overlay.active');
-            if (activeModal) closeModal(activeModal.id);
-        }
-    });
     </script>
 </body>
 </html>
