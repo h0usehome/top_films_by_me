@@ -3,235 +3,321 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Админ-панель коллекции</title>
+    <title>Панель управления коллекцией</title>
     <style>
         :root {
-            --bg-color: #f4f4f9;
-            --surface-color: #ffffff;
-            --text-color: #333333;
-            --border-color: #dddddd;
-            --accent-color: #e50914; 
-            --primary-color: #2b2b2b;
-            --border-radius: 8px;
+            --bg-gradient-start: #0f111a;
+            --bg-gradient-end: #1a0b1c;
+            --surface-color: rgba(30, 30, 45, 0.7);
+            --text-color: #ffffff;
+            --text-muted: #a0a5b5;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end));
+            background-attachment: fixed;
             color: var(--text-color);
             padding: 40px 20px;
+        }
+
+        .container {
             max-width: 800px;
             margin: 0 auto;
         }
 
-        h1 { margin-bottom: 30px; color: var(--primary-color); }
+        h1, h2 { text-align: center; margin-bottom: 20px; color: #fff; }
 
-        .panel {
+        .glass-panel {
             background: var(--surface-color);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
             padding: 30px;
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
 
-        .panel h2 { margin-top: 0; margin-bottom: 20px; border-bottom: 2px solid var(--bg-color); padding-bottom: 10px; }
+        form { display: flex; flex-direction: column; gap: 15px; }
 
-        /* Форма */
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; }
-        .form-group input, .form-group textarea, .form-group select {
-            width: 100%; padding: 10px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px; font-family: inherit; font-size: 15px;
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 15px;
         }
-        .form-group textarea { resize: vertical; min-height: 80px; }
-        
-        .btn {
-            background-color: var(--primary-color); color: white;
-            border: none; padding: 12px 20px; font-size: 16px;
-            font-weight: 600; border-radius: 4px; cursor: pointer; width: 100%;
-        }
-        .btn:hover { background-color: #000000; }
 
-        /* Список для удаления */
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #e50914;
+        }
+
+        textarea { resize: vertical; min-height: 100px; }
+
+        .form-row { display: flex; gap: 15px; }
+        .form-row > * { flex: 1; }
+
+        .btn-submit {
+            background: #e50914;
+            color: #fff;
+            border: none;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .btn-submit:hover { background: #ff0f1a; }
+        .btn-submit:disabled { background: #555; cursor: not-allowed; }
+
+        .btn-cancel {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.3s;
+            display: none; /* Скрыта по умолчанию */
+        }
+        .btn-cancel:hover { background: rgba(255, 255, 255, 0.2); }
+
         .list-item {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 12px 0; border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
-        .list-item:last-child { border-bottom: none; }
-        
+
         .item-info { display: flex; align-items: center; gap: 15px; }
-        .item-info img { width: 40px; height: 60px; object-fit: cover; border-radius: 4px; }
-        .item-info strong { display: block; font-size: 16px; }
-        .item-info span { font-size: 12px; color: #888; background: #eee; padding: 2px 6px; border-radius: 4px;}
+        .item-info img { width: 50px; height: 75px; object-fit: cover; border-radius: 5px; }
+        .item-info strong { display: block; font-size: 18px; margin-bottom: 5px; }
+        .item-info span { color: var(--text-muted); font-size: 14px; }
+
+        .action-btns { display: flex; gap: 10px; }
         
-        .btn-delete {
-            background: none; border: 1px solid var(--accent-color);
-            color: var(--accent-color); padding: 6px 12px;
-            border-radius: 4px; cursor: pointer; transition: 0.2s;
+        .btn-edit, .btn-delete {
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
         }
-        .btn-delete:hover { background: var(--accent-color); color: white; }
+        .btn-edit { background: #4caf50; color: white; }
+        .btn-edit:hover { background: #45a049; }
+        
+        .btn-delete { background: rgba(229, 9, 20, 0.8); color: white; }
+        .btn-delete:hover { background: #e50914; }
+
     </style>
 </head>
 <body>
 
-    <h1>Управление коллекцией</h1>
+    <div class="container">
+        <h1>⚙️ Панель администратора</h1>
 
-    <!-- Форма добавления -->
-    <div class="panel">
-        <h2>Добавить запись</h2>
-        <form id="addForm">
-            <div class="form-group">
-                <label>Тип контента</label>
-                   <select id="inputType" required>
-        <option value="movies">Фильм</option>
-        <option value="series">Сериал</option>
-        <option value="cartoons">Мультфильм</option> <!-- Новая категория -->
-    </select>
-    <input type="text" id="inputTitle" placeholder="Название" required>
-    <input type="url" id="inputPoster" placeholder="Ссылка на постер" required>
-    <input type="text" id="inputGenres" placeholder="Жанры (через запятую)">
-    
-    <!-- НОВЫЕ ПОЛЯ -->
-    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-        <input type="number" id="inputYear" placeholder="Год выпуска" style="flex: 1;" required>
-        <select id="inputRating" style="flex: 1;" required>
-            <option value="" disabled selected>Моя оценка</option>
-            <option value="5">★★★★★ (5)</option>
-            <option value="4">★★★★☆ (4)</option>
-            <option value="3">★★★☆☆ (3)</option>
-            <option value="2">★★☆☆☆ (2)</option>
-            <option value="1">★☆☆☆☆ (1)</option>
-        </select>
-    </div>
-    <!-- КОНЕЦ НОВЫХ ПОЛЕЙ -->
-    
-    <textarea id="inputDesc" placeholder="Описание"></textarea>
-    <textarea id="inputReview" placeholder="Мой отзыв"></textarea>
-    <button type="submit">Добавить в базу</button>
-        </form>
-    </div>
+        <div class="glass-panel">
+            <h2 id="formTitle">Добавить новую запись</h2>
+            <form id="addForm">
+                <select id="inputType" required>
+                    <option value="movies">Фильм</option>
+                    <option value="series">Сериал</option>
+                    <option value="cartoons">Мультфильм</option>
+                </select>
+                
+                <input type="text" id="inputTitle" placeholder="Название" required>
+                <input type="url" id="inputPoster" placeholder="Ссылка на постер" required>
+                <input type="text" id="inputGenres" placeholder="Жанры (например: Фантастика, #боевик)">
+                
+                <div class="form-row">
+                    <input type="number" id="inputYear" placeholder="Год выпуска (например: 2024)" required>
+                    <select id="inputRating" required>
+                        <option value="" disabled selected>Моя оценка</option>
+                        <option value="5">★★★★★ (5)</option>
+                        <option value="4">★★★★☆ (4)</option>
+                        <option value="3">★★★☆☆ (3)</option>
+                        <option value="2">★★☆☆☆ (2)</option>
+                        <option value="1">★☆☆☆☆ (1)</option>
+                    </select>
+                </div>
 
-    <!-- Список для удаления -->
-    <div class="panel">
-        <h2>Редактирование базы</h2>
-        <div id="adminList"></div>
+                <textarea id="inputDesc" placeholder="Описание сюжета"></textarea>
+                <textarea id="inputReview" placeholder="Мой отзыв"></textarea>
+                
+                <div class="form-row">
+                    <button type="button" id="cancelEditBtn" class="btn-cancel" onclick="cancelEdit()">Отменить</button>
+                    <button type="submit" id="submitBtn" class="btn-submit">Добавить в базу</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="glass-panel">
+            <h2>База данных</h2>
+            <div id="adminList">
+                <p style="text-align: center; color: var(--text-muted);">Загрузка базы...</p>
+            </div>
+        </div>
     </div>
 
     <script>
-   
-const API_URL = 'https://script.google.com/macros/s/AKfycbxdfynb-Smux0tyeX4OWNTZocMniyXvL2GIAfJ8YQJP-LZ5IvdUIjjxUeXfBJn6PY9e/exec'; 
+     
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxdfynb-Smux0tyeX4OWNTZocMniyXvL2GIAfJ8YQJP-LZ5IvdUIjjxUeXfBJn6PY9e/exec'; 
 
-let collections = { movies: [], series: [], cartoons: [] };
+        let collections = { movies: [], series: [], cartoons: [] };
+        let editingId = null; // Переменная для хранения ID фильма, который мы редактируем
 
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('adminList').innerHTML = '<p>Загрузка базы данных...</p>';
-    loadData();
-});
+        document.addEventListener('DOMContentLoaded', loadData);
 
-async function loadData() {
-    try {
-        const response = await fetch(API_URL);
-        const data = await response.json();
-        
-        collections.movies = data.filter(item => item.type === 'movies');
-        collections.series = data.filter(item => item.type === 'series');
-        collections.cartoons = data.filter(item => item.type === 'cartoons');
-        
-        renderAdminList();
-    } catch (error) {
-        console.error("Ошибка:", error);
-        document.getElementById('adminList').innerHTML = '<p style="color:red;">Ошибка подключения к таблице</p>';
-    }
-}
-
-// Отправка формы (добавление строки в таблицу)
-document.getElementById('addForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const btn = this.querySelector('button[type="submit"]');
-    const originalText = btn.textContent;
-    btn.textContent = 'Сохранение...';
-    btn.disabled = true;
-
-    const newItem = {
-        id: Date.now(),
-        type: document.getElementById('inputType').value,
-        title: document.getElementById('inputTitle').value.trim(),
-        poster: document.getElementById('inputPoster').value.trim(),
-        genres: document.getElementById('inputGenres').value.trim(),
-        description: document.getElementById('inputDesc').value.trim(),
-        review: document.getElementById('inputReview').value.trim(),
-        year: document.getElementById('inputYear').value, 
-        rating: document.getElementById('inputRating').value  
-        };
-
-    try {
-        await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(newItem)
-        });
-        
-        this.reset();
-        await loadData(); // Перезагружаем список
-    } catch (error) {
-        alert('Ошибка при сохранении!');
-    } finally {
-        btn.textContent = originalText;
-        btn.disabled = false;
-    }
-});
-
-function renderAdminList() {
-    const container = document.getElementById('adminList');
-    container.innerHTML = '';
-
-    const allItems = [
-    ...collections.movies.map(m => ({ ...m, typeName: 'Фильм' })),
-    ...collections.series.map(s => ({ ...s, typeName: 'Сериал' })),
-    ...collections.cartoons.map(c => ({ ...c, typeName: 'Мультфильм' })) // Вывод мультфильмов
-].sort((a, b) => b.id - a.id);
-
-    if (allItems.length === 0) {
-        container.innerHTML = '<p style="color: #888;">База данных пуста.</p>';
-        return;
-    }
-
-    allItems.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'list-item';
-        div.innerHTML = `
-            <div class="item-info">
-                <img src="${item.poster}" onerror="this.src='https://placehold.co/40x60/ccc/fff?text=?'">
-                <div>
-                    <strong>${item.title}</strong>
-                    <span>${item.typeName}</span>
-                </div>
-            </div>
-            <button class="btn-delete" onclick="deleteItem('${item.id}', this)">Удалить</button>
-        `;
-        container.appendChild(div);
-    });
-}
-
-// Удаление строки из таблицы
-async function deleteItem(id, btnElement) {
-    if (confirm('Точно удалить из базы?')) {
-        btnElement.textContent = 'Удаление...';
-        btnElement.disabled = true;
-        
-        try {
-            await fetch(`${API_URL}?action=delete&id=${id}`);
-            await loadData();
-        } catch (error) {
-            alert('Ошибка удаления!');
-            btnElement.textContent = 'Удалить';
-            btnElement.disabled = false;
+        async function loadData() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                
+                collections.movies = data.filter(item => item.type === 'movies');
+                collections.series = data.filter(item => item.type === 'series');
+                collections.cartoons = data.filter(item => item.type === 'cartoons');
+                
+                renderAdminList();
+            } catch (error) {
+                console.error("Ошибка:", error);
+                document.getElementById('adminList').innerHTML = '<p style="color:red; text-align:center;">Ошибка подключения к таблице</p>';
+            }
         }
-    }
-}
+
+        function renderAdminList() {
+            const container = document.getElementById('adminList');
+            container.innerHTML = '';
+
+            const allItems = [
+                ...collections.movies.map(m => ({ ...m, typeName: 'Фильм' })),
+                ...collections.series.map(s => ({ ...s, typeName: 'Сериал' })),
+                ...collections.cartoons.map(c => ({ ...c, typeName: 'Мультфильм' }))
+            ].sort((a, b) => b.id - a.id);
+
+            if (allItems.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: var(--text-muted);">База данных пуста.</p>';
+                return;
+            }
+
+            allItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <div class="item-info">
+                        <img src="${item.poster}" onerror="this.src='https://placehold.co/50x75/1a1a1a/e50914?text=?'">
+                        <div>
+                            <strong>${item.title}</strong>
+                            <span>${item.typeName} • ${item.year || 'Год не указан'} • ★ ${item.rating || 0}</span>
+                        </div>
+                    </div>
+                    <div class="action-btns">
+                        <button class="btn-edit" onclick="editItem('${item.id}')">Изменить</button>
+                        <button class="btn-delete" onclick="deleteItem('${item.id}', this)">Удалить</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // --- НОВАЯ ФУНКЦИЯ: Подготовка к редактированию ---
+        function editItem(id) {
+            // Ищем объект во всех категориях
+            const item = [...collections.movies, ...collections.series, ...collections.cartoons].find(m => String(m.id) === String(id));
+            if (!item) return;
+
+            // Заполняем форму данными из таблицы
+            document.getElementById('inputType').value = item.type;
+            document.getElementById('inputTitle').value = item.title;
+            document.getElementById('inputPoster').value = item.poster;
+            document.getElementById('inputGenres').value = item.genres || '';
+            document.getElementById('inputYear').value = item.year || '';
+            document.getElementById('inputRating').value = item.rating || '';
+            document.getElementById('inputDesc').value = item.description || '';
+            document.getElementById('inputReview').value = item.review || '';
+
+            // Переводим форму в режим редактирования
+            editingId = item.id;
+            document.getElementById('formTitle').textContent = `Редактирование: ${item.title}`;
+            document.getElementById('submitBtn').textContent = 'Сохранить изменения';
+            document.getElementById('cancelEditBtn').style.display = 'block';
+
+            // Прокручиваем страницу наверх к форме
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- НОВАЯ ФУНКЦИЯ: Отмена редактирования ---
+        function cancelEdit() {
+            document.getElementById('addForm').reset();
+            editingId = null;
+            document.getElementById('formTitle').textContent = 'Добавить новую запись';
+            document.getElementById('submitBtn').textContent = 'Добавить в базу';
+            document.getElementById('cancelEditBtn').style.display = 'none';
+        }
+
+        // ОБНОВЛЕННАЯ ОТПРАВКА ФОРМЫ (Обрабатывает и добавление, и редактирование)
+        document.getElementById('addForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            const originalText = btn.textContent;
+            btn.textContent = 'Сохранение...';
+            btn.disabled = true;
+
+            const payload = {
+                id: editingId ? editingId : Date.now(), // Если редактируем - оставляем старый ID
+                action: editingId ? 'edit' : 'add',     // Сообщаем скрипту, что именно мы делаем
+                type: document.getElementById('inputType').value,
+                title: document.getElementById('inputTitle').value.trim(),
+                poster: document.getElementById('inputPoster').value.trim(),
+                genres: document.getElementById('inputGenres').value.trim(),
+                description: document.getElementById('inputDesc').value.trim(),
+                review: document.getElementById('inputReview').value.trim(),
+                year: document.getElementById('inputYear').value,
+                rating: document.getElementById('inputRating').value
+            };
+
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                
+                cancelEdit(); // Сбрасываем форму и выходим из режима редактирования
+                await loadData(); // Перезагружаем список
+            } catch (error) {
+                alert('Ошибка при сохранении!');
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        });
+
+        async function deleteItem(id, btnElement) {
+            if (confirm('Точно удалить из базы?')) {
+                btnElement.textContent = '...';
+                btnElement.disabled = true;
+                
+                try {
+                    await fetch(`${API_URL}?action=delete&id=${id}`);
+                    await loadData();
+                } catch (error) {
+                    alert('Ошибка удаления!');
+                    btnElement.textContent = 'Удалить';
+                    btnElement.disabled = false;
+                }
+            }
+        }
     </script>
 </body>
 </html>
