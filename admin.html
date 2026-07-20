@@ -187,7 +187,7 @@
     <script>
         const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0YWNidmN3c3lhanBlYWNkbXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NjM4NDgsImV4cCI6MjEwMDEzOTg0OH0.OhjANu7A7Wb7GUsBjVzrvjkGJlgVsehSf6EyC1DMxR8';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentData = [];
         let editingItem = null;
@@ -197,7 +197,7 @@
 
         async function load() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('collection')
                     .select('*')
                     .order('id', { ascending: false });
@@ -340,10 +340,10 @@
 
             try {
                 if (editingItem) {
-                    const { error } = await supabase.from('collection').update(payload).eq('id', editingItem.id);
+                    const { error } = await supabaseClient.from('collection').update(payload).eq('id', editingItem.id);
                     if (error) throw error;
                 } else {
-                    const { error } = await supabase.from('collection').insert([payload]);
+                    const { error } = await supabaseClient.from('collection').insert([payload]);
                     if (error) throw error;
                 }
 
@@ -411,7 +411,7 @@
         async function del(id) {
             if(!confirm('Точно удалить этот фильм?')) return;
             try {
-                const { error } = await supabase.from('collection').delete().eq('id', id);
+                const { error } = await supabaseClient.from('collection').delete().eq('id', id);
                 if (error) throw error;
                 await load();
             } catch (error) {
@@ -473,7 +473,7 @@
             items.forEach((item, index) => {
                 const id = item.getAttribute('data-id');
                 const newRank = index + 1;
-                updates.push(supabase.from('collection').update({ toprank: newRank }).eq('id', id));
+                updates.push(supabaseClient.from('collection').update({ toprank: newRank }).eq('id', id));
             });
 
             try {
