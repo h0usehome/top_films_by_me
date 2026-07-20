@@ -152,6 +152,12 @@
                         Добавить в подборку ТОП-100
                     </label>
 
+                    <!-- Пересматриваем любимое Checkbox -->
+                    <label class="switch-label">
+                        <input type="checkbox" id="f_rewatch">
+                        Добавить в подборку «Пересматриваем любимое»
+                    </label>
+
                     <textarea id="f_desc" placeholder="Описание сюжета"></textarea>
                     <textarea id="f_review" placeholder="Личный отзыв"></textarea>
                     
@@ -200,7 +206,7 @@
         let editingItem = null;
 
         // Базовые жанры
-        const STANDARD_GENRES = ['Боевик', 'Комедия', 'Драма', 'Фантастика', 'Триллер', 'Криминал', 'Мелодрама', 'Детектив', 'Приключения', 'Фэнтези', 'Аниме', 'Документальный', 'Спорт'];
+        const STANDARD_GENRES = ['Боевик', 'Комедия', 'Драма', 'Фантастика', 'Триллер', 'Ужасы', 'Мелодрама', 'Детектив', 'Приключения', 'Фэнтези', 'Аниме', 'Документальный', 'Спорт'];
 
         async function load() {
             try {
@@ -298,13 +304,14 @@
             const html = currentData.map(i => {
                 const typeName = i.type === 'movies' ? 'Фильм' : i.type === 'series' ? 'Сериал' : 'Мультфильм';
                 const isTop = (i.toprank && i.toprank > 0) ? `🏆 Топ-${i.toprank}` : '';
+                const isRewatch = i.rewatch ? `🔄 Пересматриваем` : '';
                 return `
                 <div class="item">
                     <div class="item-info">
                         <img src="${i.poster || ''}" alt="Постер">
                         <div>
                             <div class="item-title">${i.title}</div>
-                            <div class="item-meta">${typeName} • ${isTop} <br> Списки: ${i.customlists || '-'}</div>
+                            <div class="item-meta">${typeName} ${isTop ? '• ' + isTop : ''} ${isRewatch ? '• ' + isRewatch : ''} <br> Списки: ${i.customlists || '-'}</div>
                         </div>
                     </div>
                     <div class="actions">
@@ -341,6 +348,7 @@
                 genres: selectedGenres,
                 customlists: selectedLists,
                 toprank: finalRank,
+                rewatch: document.getElementById('f_rewatch').checked,
                 description: document.getElementById('f_desc').value,
                 review: document.getElementById('f_review').value
             };
@@ -398,6 +406,7 @@
             }
 
             document.getElementById('f_inTop100').checked = (editingItem.toprank && editingItem.toprank > 0);
+            document.getElementById('f_rewatch').checked = !!editingItem.rewatch;
             
             document.getElementById('formTitle').innerText = 'Редактирование записи';
             document.getElementById('btnCancel').style.display = 'block';
