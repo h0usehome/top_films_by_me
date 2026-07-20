@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Админ-панель</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23141414%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23e50914%22%20stroke-width%3D%224%22/%3E%0A%3Cg%20fill%3D%22%23e50914%22%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3C/g%3E%0A%3C/svg%3E">
     <style>
         :root {
             --bg: #141414; --surface: #1f1f1f;
@@ -98,24 +99,30 @@
         <div id="crud-section" class="section active">
             <div class="panel">
                 <h2 id="formTitle">Добавить новую запись</h2>
-                <form id="adminForm">
+                <form id="adminForm" autocomplete="off">
                     <select id="f_type" required>
                         <option value="movies">Фильм</option>
                         <option value="series">Сериал</option>
                         <option value="cartoons">Мультфильм</option>
                     </select>
-                    <input type="text" id="f_title" placeholder="Название" required>
-                    <input type="url" id="f_poster" placeholder="Ссылка на постер (URL)" required>
+                    <input type="text" id="f_title" placeholder="Название" autocomplete="off" required>
+                    <input type="url" id="f_poster" placeholder="Ссылка на постер (URL)" autocomplete="off" required>
                     
                     <div class="row">
                         <input type="number" id="f_year" placeholder="Год выпуска" required>
                         <select id="f_rating" required>
                             <option value="" disabled selected>Моя оценка</option>
-                            <option value="5">★★★★★ (5)</option>
-                            <option value="4">★★★★☆ (4)</option>
-                            <option value="3">★★★☆☆ (3)</option>
-                            <option value="2">★★☆☆☆ (2)</option>
-                            <option value="1">★☆☆☆☆ (1)</option>
+                            <option value="10">★★★★★★★★★★ (10)</option>
+                            <option value="9">★★★★★★★★★☆ (9)</option>
+                            <option value="8">★★★★★★★★☆☆ (8)</option>
+                            <option value="7">★★★★★★★☆☆☆ (7)</option>
+                            <option value="6">★★★★★★☆☆☆☆ (6)</option>
+                            <option value="5">★★★★★☆☆☆☆☆ (5)</option>
+                            <option value="4">★★★★☆☆☆☆☆☆ (4)</option>
+                            <option value="3">★★★☆☆☆☆☆☆☆ (3)</option>
+                            <option value="2">★★☆☆☆☆☆☆☆☆ (2)</option>
+                            <option value="1">★☆☆☆☆☆☆☆☆☆ (1)</option>
+                            <option value="0">☆☆☆☆☆☆☆☆☆☆ (0)</option>
                         </select>
                     </div>
 
@@ -193,7 +200,7 @@
         let editingItem = null;
 
         // Базовые жанры
-        const STANDARD_GENRES = ['Боевик', 'Комедия', 'Драма', 'Фантастика', 'Триллер', 'Криминал', 'Мелодрама', 'Детектив', 'Приключения', 'Фэнтези', 'Спорт', 'Аниме', 'Документальный', 'Фэнтези'];
+        const STANDARD_GENRES = ['Боевик', 'Комедия', 'Драма', 'Фантастика', 'Триллер', 'Ужасы', 'Мелодрама', 'Детектив', 'Приключения', 'Фэнтези', 'Аниме', 'Документальный', 'Спорт'];
 
         async function load() {
             try {
@@ -330,7 +337,7 @@
                 title: document.getElementById('f_title').value,
                 poster: document.getElementById('f_poster').value,
                 year: parseInt(document.getElementById('f_year').value) || null,
-                rating: parseInt(document.getElementById('f_rating').value) || null,
+                rating: (() => { const v = document.getElementById('f_rating').value; return v === '' ? null : parseInt(v); })(),
                 genres: selectedGenres,
                 customlists: selectedLists,
                 toprank: finalRank,
@@ -370,7 +377,7 @@
             document.getElementById('f_title').value = editingItem.title || '';
             document.getElementById('f_poster').value = editingItem.poster || '';
             document.getElementById('f_year').value = editingItem.year || '';
-            document.getElementById('f_rating').value = editingItem.rating || '';
+            document.getElementById('f_rating').value = (editingItem.rating !== null && editingItem.rating !== undefined) ? editingItem.rating : '';
             document.getElementById('f_desc').value = editingItem.description || '';
             document.getElementById('f_review').value = editingItem.review || '';
             
