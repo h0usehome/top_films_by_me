@@ -484,8 +484,11 @@
                 alert("Порядок успешно сохранен!");
                 await load(); // Перезагружаем данные
             } catch (error) {
-                console.error("Ошибка обновления порядка:", error);
-                alert("Ошибка сохранения порядка.");
+                console.error("Полная ошибка:", error);
+                alert("ОШИБКА ОТ БАЗЫ ДАННЫХ:\n" + 
+                      "Сообщение: " + (error.message || "нет") + "\n" + 
+                      "Детали: " + (error.details || "нет") + "\n" + 
+                      "Код: " + (error.code || "нет"));
             } finally {
                 btn.innerText = '💾 Сохранить новый порядок';
                 btn.disabled = false;
