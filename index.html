@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Моя коллекция</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23141414%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2223%22%20fill%3D%22none%22%20stroke%3D%22%23e50914%22%20stroke-width%3D%223%22/%3E%0A%3Cpolygon%20points%3D%2226%2C20%2026%2C44%2046%2C32%22%20fill%3D%22%23e50914%22/%3E%0A%3C/svg%3E">
     <style>
         :root {
             --bg-main: #141414; 
@@ -42,11 +43,7 @@
             border-bottom: 1px solid rgba(255,255,255,0.05);
         }
         .burger { display: none; background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
-        .tabs { display: flex; gap: 30px; }
-        .tab { font-size: 16px; font-weight: 500; color: var(--text-muted); cursor: pointer; transition: 0.3s; position: relative; padding-bottom: 5px; }
-        .tab:hover { color: var(--text-main); }
-        .tab.active { color: var(--text-main); }
-        .tab.active::after { content: ''; position: absolute; left: 0; bottom: 0; width: 100%; height: 2px; background: var(--primary); border-radius: 2px; }
+        .page-title { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
         
         .content-wrapper { padding: 40px; }
 
@@ -122,7 +119,12 @@
     <nav class="sidebar" id="sidebar">
         <div class="brand">MY<span>COLLECTION</span></div>
         <div class="nav-item active" onclick="setFilter('main', this)">🏠 Главная</div>
-        
+
+        <h3>Категории</h3>
+        <div class="nav-item" onclick="setFilter('movies', this)">🎬 Фильмы</div>
+        <div class="nav-item" onclick="setFilter('series', this)">📺 Сериалы</div>
+        <div class="nav-item" onclick="setFilter('cartoons', this)">🧸 Мультфильмы</div>
+
         <h3>Подборки</h3>
         <div class="nav-item" onclick="setFilter('top100', this)">⭐ ТОП 100</div>
         <div class="nav-item" onclick="setFilter('new', this)">🔥 Новинки</div>
@@ -135,11 +137,7 @@
     <main class="main-content">
         <header>
             <button class="burger" onclick="toggleSidebar()">☰</button>
-            <div class="tabs" id="mainTabs">
-                <div class="tab active" onclick="setCategory('movies', this)">Фильмы</div>
-                <div class="tab" onclick="setCategory('series', this)">Сериалы</div>
-                <div class="tab" onclick="setCategory('cartoons', this)">Мультфильмы</div>
-            </div>
+            <div class="page-title" id="pageTitle">Главная</div>
             <div style="width: 24px;" class="spacer"></div>
         </header>
 
@@ -167,8 +165,16 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         let allData = [];
-        let currentCategory = 'movies'; 
         let currentFilter = 'main'; 
+
+        const FILTER_TITLES = {
+            main: '🏠 Главная',
+            movies: '🎬 Фильмы',
+            series: '📺 Сериалы',
+            cartoons: '🧸 Мультфильмы',
+            top100: '⭐ ТОП 100',
+            new: '🔥 Новинки'
+        };
 
         document.addEventListener('DOMContentLoaded', init);
 
@@ -190,32 +196,12 @@
             document.getElementById('sidebar').classList.toggle('open');
         }
 
-        function setCategory(cat, el) {
-            currentCategory = cat;
-            currentFilter = 'main'; 
-            
-            document.getElementById('mainTabs').style.display = 'flex';
-            
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            el.classList.add('active');
-
-            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            document.querySelector('.nav-item[onclick*="main"]').classList.add('active');
-            
-            render();
-        }
-
         function setFilter(filterType, el) {
             currentFilter = filterType;
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
-            
-            const tabsContainer = document.getElementById('mainTabs');
-            if (filterType === 'main') {
-                tabsContainer.style.display = 'flex';
-            } else {
-                tabsContainer.style.display = 'none';
-            }
+
+            document.getElementById('pageTitle').textContent = FILTER_TITLES[filterType] || el.textContent.trim();
             
             if(window.innerWidth <= 768) toggleSidebar(); 
             render();
@@ -246,30 +232,29 @@
                 return;
             }
 
-            let filtered = [];
+            let filtered = [...allData];
 
             if (currentFilter === 'main') {
-                filtered = allData.filter(i => i.type === currentCategory);
+                // Показываем всё вместе, без фильтрации по типу
+            } else if (currentFilter === 'movies' || currentFilter === 'series' || currentFilter === 'cartoons') {
+                filtered = filtered.filter(i => i.type === currentFilter);
+            } else if (currentFilter === 'top100') {
+                filtered = filtered.filter(i => i.toprank && i.toprank > 0).sort((a, b) => a.toprank - b.toprank).slice(0, 100);
+            } else if (currentFilter === 'new') {
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                filtered = filtered.filter(i => {
+                    if (!i.created_at) return false;
+                    const itemDate = new Date(i.created_at);
+                    return !isNaN(itemDate) && itemDate >= sevenDaysAgo;
+                });
             } else {
-                filtered = [...allData];
-                if (currentFilter === 'top100') {
-                    filtered = filtered.filter(i => i.toprank && i.toprank > 0).sort((a, b) => a.toprank - b.toprank).slice(0, 100);
-                } else if (currentFilter === 'new') {
-                    const sevenDaysAgo = new Date();
-                    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                    filtered = filtered.filter(i => {
-                        if (!i.created_at) return false;
-                        const itemDate = new Date(i.created_at);
-                        return !isNaN(itemDate) && itemDate >= sevenDaysAgo;
-                    });
-                } else {
-                    // Точный поиск по спискам вместо простого .includes()
-                    filtered = filtered.filter(i => {
-                        if (!i.customlists) return false;
-                        const lists = i.customlists.split(',').map(l => l.trim());
-                        return lists.includes(currentFilter);
-                    });
-                }
+                // Точный поиск по спискам вместо простого .includes()
+                filtered = filtered.filter(i => {
+                    if (!i.customlists) return false;
+                    const lists = i.customlists.split(',').map(l => l.trim());
+                    return lists.includes(currentFilter);
+                });
             }
 
             if (filtered.length === 0) {
