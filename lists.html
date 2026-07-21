@@ -3,426 +3,457 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Моя коллекция</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23141414%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2223%22%20fill%3D%22none%22%20stroke%3D%22%23e50914%22%20stroke-width%3D%223%22/%3E%0A%3Cpolygon%20points%3D%2226%2C20%2026%2C44%2046%2C32%22%20fill%3D%22%23e50914%22/%3E%0A%3C/svg%3E">
+    <title>Мои списки — Админ-панель</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23141414%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23e50914%22%20stroke-width%3D%224%22/%3E%0A%3Cg%20fill%3D%22%23e50914%22%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3C/g%3E%0A%3C/svg%3E">
     <style>
         :root {
-            --bg-main: #141414; 
-            --bg-sidebar: #0b0b0b;
-            --surface: #1f1f1f;
-            --primary: #e50914; 
-            --text-main: #ffffff;
-            --text-muted: #808080;
-            --sidebar-width: 260px;
+            --bg: #141414; --surface: #1f1f1f; --surface2: #262626;
+            --primary: #e50914; --text: #ffffff; --muted: #808080;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
-        body { background: var(--bg-main); color: var(--text-main); display: flex; min-height: 100vh; overflow-x: hidden; }
-        
-        /* Сайдбар */
-        .sidebar {
-            width: var(--sidebar-width); background: var(--bg-sidebar); 
-            border-right: 1px solid rgba(255,255,255,0.05); padding: 30px 0;
-            display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 100;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .brand { font-size: 24px; font-weight: 800; padding: 0 30px; margin-bottom: 40px; letter-spacing: 1px; }
-        .brand span { color: var(--primary); }
-        .sidebar h3 { padding: 0 30px; color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin: 25px 0 10px; }
-        .nav-item { padding: 12px 30px; color: var(--text-muted); font-size: 15px; font-weight: 500; display: block; cursor: pointer; transition: 0.2s; border-right: 3px solid transparent; }
-        .nav-item:hover { color: var(--text-main); background: rgba(255,255,255,0.03); }
-        .nav-item.active { color: var(--text-main); border-right-color: var(--primary); background: linear-gradient(90deg, transparent, rgba(229, 9, 20, 0.1)); }
-        
-        /* Основной контент */
-        .main-content { flex: 1; margin-left: var(--sidebar-width); display: flex; flex-direction: column; transition: margin-left 0.3s; }
-        
-        /* Новая шапка */
-        header { 
-            display: flex; align-items: center; justify-content: space-between; 
-            padding: 20px 40px; background: rgba(20, 20, 20, 0.9); 
-            backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 50;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-        .burger { display: none; background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
-        .page-title { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
-        .sort-select {
-            background: var(--surface); color: var(--text-main); border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 6px; padding: 8px 12px; font-size: 14px; cursor: pointer; outline: none;
-        }
-        .sort-select:hover { border-color: var(--primary); }
-        
-        .content-wrapper { padding: 40px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: var(--bg); color: var(--text); padding: 40px 20px; }
+        .container { max-width: 1300px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 20px; font-weight: 800; letter-spacing: 1px; }
 
-        /* Сетка карточек */
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 30px; }
-        .card { background: var(--surface); border-radius: 8px; overflow: hidden; cursor: pointer; transition: transform 0.3s, box-shadow 0.3s; position: relative; }
-        .card:hover { transform: scale(1.05); box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 2; }
-        .card img { width: 100%; height: 270px; object-fit: cover; transition: 0.3s; }
-        .card:hover img { opacity: 0.8; }
-        .card-info { padding: 15px; }
-        .card-title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-        .card-meta { font-size: 12px; color: var(--text-muted); margin-top: 5px; display: flex; justify-content: space-between; }
-        .rating { color: #f5c518; font-weight: bold; }
+        .admin-nav { display: flex; gap: 15px; margin-bottom: 30px; justify-content: center; flex-wrap: wrap; }
+        .nav-tab { padding: 12px 25px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 16px; transition: 0.3s; border: 1px solid transparent; text-decoration: none; color: inherit; display: inline-block; }
+        .nav-tab.active { background: rgba(229, 9, 20, 0.1); border-color: var(--primary); color: var(--text); }
+        .nav-tab:hover:not(.active) { background: rgba(255,255,255,0.1); }
 
-        /* Пустое состояние */
-        .empty-state { text-align: center; color: var(--text-muted); grid-column: 1 / -1; padding: 50px 0; font-size: 18px; }
+        .layout { display: flex; gap: 30px; align-items: flex-start; }
+        .panel { background: var(--surface); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
 
-        /* ТОП 100 — список по одному фильму в строку */
-        .top100-list { display: flex; flex-direction: column; gap: 14px; }
-        .top100-row {
-            display: flex; align-items: center; gap: 24px;
-            background: var(--surface); border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 12px; padding: 14px 24px; cursor: pointer;
-            transition: transform 0.25s, box-shadow 0.25s, background 0.25s;
+        /* Левая колонка — список списков */
+        .lists-panel { width: 300px; flex-shrink: 0; }
+        .lists-panel h2 { font-size: 17px; margin-bottom: 15px; }
+        .add-list-row { display: flex; gap: 8px; margin-bottom: 20px; }
+        .add-list-row input {
+            flex: 1; padding: 10px 12px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; color: #fff; font-size: 14px; outline: none;
         }
-        .top100-row:hover { background: #262626; transform: translateX(6px); box-shadow: 0 10px 25px rgba(0,0,0,0.45); }
-
-        .top100-rank {
-            flex: 0 0 80px; text-align: center; font-size: 42px; font-weight: 900;
-            font-style: italic; color: #3a3a3a; -webkit-text-stroke: 1px rgba(255,255,255,0.12);
-            line-height: 1;
+        .add-list-row input:focus { border-color: var(--primary); }
+        .add-list-row button {
+            padding: 10px 16px; background: var(--primary); border: none; border-radius: 8px; color: #fff;
+            font-weight: 700; cursor: pointer; font-size: 16px;
         }
-        .top100-rank.gold   { background: linear-gradient(180deg, #ffe98a, #d4a017); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 2px 12px rgba(212,160,23,0.4); -webkit-text-stroke: 0; }
-        .top100-rank.silver { background: linear-gradient(180deg, #f2f2f2, #a8a8a8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 2px 12px rgba(168,168,168,0.35); -webkit-text-stroke: 0; }
-        .top100-rank.bronze { background: linear-gradient(180deg, #e3a765, #a35d2d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 2px 12px rgba(163,93,45,0.35); -webkit-text-stroke: 0; }
+        .add-list-row button:hover { background: #ff1a25; }
 
-        .top100-poster { flex: 0 0 70px; width: 70px; height: 100px; object-fit: cover; border-radius: 8px; background: #000; }
-        .top100-info { flex: 1; min-width: 0; }
-        .top100-title { font-size: 19px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .top100-meta { font-size: 13px; color: var(--text-muted); margin-top: 8px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
-        .top100-meta .rating { color: #f5c518; font-weight: bold; font-size: 14px; }
+        .list-nav-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 14px; border-radius: 8px; cursor: pointer; margin-bottom: 6px;
+            color: var(--muted); font-weight: 600; transition: 0.2s;
+        }
+        .list-nav-item .count { font-size: 12px; font-weight: 400; background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 10px; }
+        .list-nav-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .list-nav-item.active { background: rgba(229, 9, 20, 0.12); color: #fff; border: 1px solid rgba(229, 9, 20, 0.4); }
+        .lists-empty { color: var(--muted); font-size: 14px; padding: 10px 0; }
 
-        @media (max-width: 768px) {
-            .top100-row { gap: 14px; padding: 10px 14px; }
-            .top100-rank { flex-basis: 44px; font-size: 26px; }
-            .top100-poster { flex-basis: 50px; width: 50px; height: 74px; }
-            .top100-title { font-size: 15px; }
-            .top100-meta { font-size: 11px; gap: 8px; }
+        /* Правая колонка — содержимое выбранного списка */
+        .content-panel { flex: 1; min-width: 0; }
+        .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .list-header h2 { font-size: 24px; font-weight: 800; }
+        .list-header-actions { display: flex; gap: 10px; }
+        .list-header-actions button {
+            padding: 8px 14px; font-size: 13px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600;
         }
+        .btn-rename { background: #2b2b2b; color: #fff; }
+        .btn-rename:hover { background: #404040; }
+        .btn-delete-list { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+        .btn-delete-list:hover { background: var(--primary); color: #fff; }
 
-        /* Модальное окно */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.9); backdrop-filter: blur(5px);
-            display: none; justify-content: center; align-items: center;
-            z-index: 1000; padding: 20px; opacity: 0; transition: opacity 0.3s;
+        .rename-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        .rename-row input {
+            flex: 1; padding: 10px 12px; background: rgba(0,0,0,0.4); border: 1px solid var(--primary);
+            border-radius: 8px; color: #fff; font-size: 16px; font-weight: 700; outline: none;
         }
-        .modal-overlay.active { display: flex; opacity: 1; }
-        
-        .modal-content {
-            background: var(--surface); border-radius: 12px; max-width: 850px; width: 100%;
-            max-height: 90vh; overflow-y: auto; position: relative;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
-        }
-        
-        .modal-close {
-            position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.6);
-            border: none; color: white; width: 36px; height: 36px; border-radius: 50%;
-            font-size: 20px; cursor: pointer; z-index: 10; display: flex; justify-content: center; align-items: center; transition: 0.2s;
-        }
-        .modal-close:hover { background: var(--primary); }
-        
-        .modal-body { display: flex; flex-direction: column; }
-        .details-poster { flex: 0 0 300px; background: #000; display: flex; align-items: center; justify-content: center; }
-        .details-poster img { width: 100%; height: 100%; object-fit: contain; border-top-left-radius: 12px; border-top-right-radius: 12px; }
-        
-        .details-info { padding: 40px; flex: 1; }
-        .details-title { font-size: 32px; font-weight: 800; margin-bottom: 10px; line-height: 1.2; }
-        .details-tags { margin-bottom: 25px; color: var(--text-muted); font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
-        .tag { background: rgba(255,255,255,0.1); padding: 4px 10px; border-radius: 4px; }
-        .details-section { margin-bottom: 25px; }
-        .details-section h4 { margin-bottom: 8px; color: var(--text-main); font-size: 16px; font-weight: 600; }
-        .details-section p { color: #b3b3b3; line-height: 1.6; font-size: 15px; }
+        .rename-row button { padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; }
+        .btn-save-rename { background: var(--primary); color: #fff; }
+        .btn-cancel-rename { background: #2b2b2b; color: #fff; }
 
-        @media (min-width: 768px) {
-            .modal-body { flex-direction: row; }
-            .details-poster img { border-bottom-left-radius: 12px; border-top-right-radius: 0; }
-        }
+        h3.section-title { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 25px 0 12px; }
+        h3.section-title:first-of-type { margin-top: 0; }
 
-        /* Мобильная адаптация */
-        @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.open { transform: translateX(0); box-shadow: 10px 0 30px rgba(0,0,0,0.5); }
-            .main-content { margin-left: 0; }
-            header { padding: 15px 20px; }
-            .burger { display: block; }
-            .content-wrapper { padding: 20px; }
-            .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
-            .card img { height: 210px; }
+        .item { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 10px 14px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; gap: 10px; }
+        .item-info { display: flex; gap: 14px; align-items: center; min-width: 0; }
+        .item-info img { width: 42px; height: 60px; object-fit: cover; border-radius: 4px; background: #000; flex-shrink: 0; }
+        .item-title { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+        .item-meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+        .actions button {
+            padding: 7px 12px; font-size: 13px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600;
+        }
+        .btn-add { background: rgba(46, 204, 113, 0.15); border: 1px solid #2ecc71; color: #2ecc71; }
+        .btn-add:hover { background: #2ecc71; color: #fff; }
+        .btn-remove { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+        .btn-remove:hover { background: var(--primary); color: #fff; }
+
+        #searchAddInput {
+            width: 100%; padding: 12px 14px; margin-bottom: 15px; background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 14px; outline: none;
+        }
+        #searchAddInput:focus { border-color: var(--primary); }
+
+        .empty-state { text-align: center; color: var(--muted); padding: 30px 0; }
+        .placeholder-state { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 16px; }
+
+        @media (max-width: 900px) {
+            .layout { flex-direction: column; }
+            .lists-panel { width: 100%; }
+            .item-title { max-width: 160px; }
         }
     </style>
 </head>
 <body>
+    <div class="container">
+        <h1>🗂️ Мои списки</h1>
 
-    <!-- Сайдбар -->
-    <nav class="sidebar" id="sidebar">
-        <div class="brand">MY<span>COLLECTION</span></div>
-        <div class="nav-item active" onclick="setFilter('main', this)">🏠 Главная</div>
-
-        <h3>Категории</h3>
-        <div class="nav-item" onclick="setFilter('movies', this)">🎬 Фильмы</div>
-        <div class="nav-item" onclick="setFilter('series', this)">📺 Сериалы</div>
-        <div class="nav-item" onclick="setFilter('cartoons', this)">🧸 Мультфильмы</div>
-
-        <h3>Подборки</h3>
-        <div class="nav-item" onclick="setFilter('top100', this)">⭐ ТОП 100</div>
-        <div class="nav-item" onclick="setFilter('new', this)">🔥 Новинки</div>
-        <div class="nav-item" onclick="setFilter('rewatch', this)">🔄 Пересматриваем любимое</div>
-        
-        <h3>Мои списки</h3>
-        <div id="dynamicLists"></div>
-    </nav>
-
-    <!-- Основной контент -->
-    <main class="main-content">
-        <header>
-            <button class="burger" onclick="toggleSidebar()">☰</button>
-            <div class="page-title" id="pageTitle">Главная</div>
-            <select class="sort-select" id="sortSelect" onchange="setSort(this.value)">
-                <option value="default">Сортировка: по умолчанию</option>
-                <option value="rating_desc">Рейтинг: сначала высокий</option>
-                <option value="rating_asc">Рейтинг: сначала низкий</option>
-                <option value="year_desc">Год выхода: сначала новые</option>
-                <option value="year_asc">Год выхода: сначала старые</option>
-            </select>
-        </header>
-
-        <div class="content-wrapper">
-            <div class="grid" id="contentGrid">
-                <div class="empty-state">Загрузка данных...</div>
-            </div>
+        <div class="admin-nav">
+            <a class="nav-tab" href="admin.html">➕ Добавление / Редактирование</a>
+            <a class="nav-tab" href="database.html">📋 Общая база</a>
+            <a class="nav-tab active" href="lists.html">🗂️ Мои списки</a>
         </div>
-    </main>
 
-    <!-- Модальное окно -->
-    <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
-        <div class="modal-content">
-            <button class="modal-close" onclick="closeModal()">&times;</button>
-            <div class="modal-body" id="modalBody"></div>
+        <div class="layout">
+            <!-- Левая колонка: все списки -->
+            <div class="panel lists-panel">
+                <h2>Списки</h2>
+                <div class="add-list-row">
+                    <input type="text" id="newListInput" placeholder="Название нового списка">
+                    <button type="button" onclick="createList()">+</button>
+                </div>
+                <div id="listsNav"><div class="lists-empty">Загрузка...</div></div>
+            </div>
+
+            <!-- Правая колонка: содержимое выбранного списка -->
+            <div class="panel content-panel" id="contentPanel">
+                <div class="placeholder-state">⬅ Выберите список слева или создайте новый</div>
+            </div>
         </div>
     </div>
 
-    <!-- Библиотека Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
+    <!-- Общий для всех страниц админки: ключи Supabase -->
+    <script src="config.js"></script>
+
     <script>
-        const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0YWNidmN3c3lhanBlYWNkbXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NjM4NDgsImV4cCI6MjEwMDEzOTg0OH0.OhjANu7A7Wb7GUsBjVzrvjkGJlgVsehSf6EyC1DMxR8';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        
-        let allData = [];
-        let currentFilter = 'main'; 
-        let currentSort = 'default';
+        // SUPABASE_URL, SUPABASE_KEY и supabaseClient
+        // теперь подключаются из общего config.js (см. <head> выше)
 
-        const FILTER_TITLES = {
-            main: '🏠 Главная',
-            movies: '🎬 Фильмы',
-            series: '📺 Сериалы',
-            cartoons: '🧸 Мультфильмы',
-            top100: '⭐ ТОП 100',
-            new: '🔥 Новинки',
-            rewatch: '🔄 Пересматриваем любимое'
-        };
-
-        document.addEventListener('DOMContentLoaded', init);
+        let allMovies = [];      // все фильмы из collection
+        let allLists = [];       // объединённые названия списков (из таблицы lists + из полей customlists)
+        let selectedList = null; // текущий выбранный список
 
         async function init() {
+            await loadData();
+        }
+
+        async function loadData() {
             try {
-                const { data, error } = await supabaseClient.from('collection').select('*');
-                if (error) throw error;
-                
-                allData = data || [];
-                generateCustomLists();
-                render();
+                const [moviesRes, listsRes] = await Promise.all([
+                    supabaseClient.from('collection').select('*'),
+                    supabaseClient.from('lists').select('*').order('name', { ascending: true })
+                ]);
+
+                if (moviesRes.error) throw moviesRes.error;
+                if (listsRes.error) throw listsRes.error;
+
+                allMovies = moviesRes.data || [];
+
+                // Объединяем списки из таблицы lists с теми, что встречаются только в customlists фильмов
+                // (например, созданные ранее старым способом прямо из формы добавления)
+                const namesFromTable = (listsRes.data || []).map(l => l.name);
+                const namesFromMovies = new Set();
+                allMovies.forEach(m => {
+                    if (m.customlists) {
+                        m.customlists.split(',').map(s => s.trim()).filter(Boolean).forEach(n => namesFromMovies.add(n));
+                    }
+                });
+
+                const combined = new Set(namesFromTable);
+                namesFromMovies.forEach(n => combined.add(n));
+                allLists = Array.from(combined).sort((a, b) => a.localeCompare(b, 'ru'));
+
+                renderListsNav();
+
+                if (selectedList && allLists.includes(selectedList)) {
+                    renderContentPanel();
+                } else {
+                    selectedList = null;
+                    document.getElementById('contentPanel').innerHTML = '<div class="placeholder-state">⬅ Выберите список слева или создайте новый</div>';
+                }
             } catch (error) {
-                console.error("Ошибка Supabase:", error);
-                document.getElementById('contentGrid').innerHTML = '<div class="empty-state" style="color:var(--primary);">Ошибка загрузки базы данных. Проверьте консоль.</div>';
+                console.error(error);
+                document.getElementById('listsNav').innerHTML = '<div class="lists-empty" style="color:var(--primary);">Ошибка подключения к БД.</div>';
             }
         }
 
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
+        function moviesInList(name) {
+            return allMovies.filter(m => {
+                if (!m.customlists) return false;
+                return m.customlists.split(',').map(s => s.trim()).includes(name);
+            });
         }
 
-        function setFilter(filterType, el) {
-            currentFilter = filterType;
-            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            el.classList.add('active');
-
-            document.getElementById('pageTitle').textContent = FILTER_TITLES[filterType] || el.textContent.trim();
-            
-            if(window.innerWidth <= 768) toggleSidebar(); 
-            render();
+        function renderListsNav() {
+            const container = document.getElementById('listsNav');
+            if (allLists.length === 0) {
+                container.innerHTML = '<div class="lists-empty">Пока нет ни одного списка. Создайте первый выше.</div>';
+                return;
+            }
+            container.innerHTML = allLists.map(name => {
+                const count = moviesInList(name).length;
+                const activeClass = name === selectedList ? 'active' : '';
+                return `
+                <div class="list-nav-item ${activeClass}" onclick="selectList('${escapeAttr(name)}')">
+                    <span>📌 ${escapeHtml(name)}</span>
+                    <span class="count">${count}</span>
+                </div>`;
+            }).join('');
         }
 
-        function setSort(sortType) {
-            currentSort = sortType;
-            render();
+        function selectList(name) {
+            selectedList = name;
+            renderListsNav();
+            renderContentPanel();
         }
 
-        function generateCustomLists() {
-            const listSet = new Set();
-            allData.forEach(item => {
-                if(item.customlists) {
-                    item.customlists.split(',').forEach(l => {
-                        const cleanName = l.trim();
-                        if(cleanName) listSet.add(cleanName);
-                    });
-                }
+        function renderContentPanel() {
+            const panel = document.getElementById('contentPanel');
+            const inList = moviesInList(selectedList);
+
+            panel.innerHTML = `
+                <div class="list-header" id="listHeaderNormal">
+                    <h2>📌 ${escapeHtml(selectedList)}</h2>
+                    <div class="list-header-actions">
+                        <button class="btn-rename" onclick="startRename()">✏️ Переименовать</button>
+                        <button class="btn-delete-list" onclick="deleteList()">🗑️ Удалить список</button>
+                    </div>
+                </div>
+                <div id="renameRowContainer"></div>
+
+                <h3 class="section-title">Фильмы в списке (${inList.length})</h3>
+                <div id="moviesInListContainer"></div>
+
+                <h3 class="section-title">Добавить фильм из общей базы</h3>
+                <input type="text" id="searchAddInput" placeholder="🔍 Поиск по названию..." oninput="renderAddCandidates()">
+                <div id="addCandidatesContainer"></div>
+            `;
+
+            renderMoviesInList();
+            renderAddCandidates();
+        }
+
+        function renderMoviesInList() {
+            const container = document.getElementById('moviesInListContainer');
+            const inList = moviesInList(selectedList);
+
+            if (inList.length === 0) {
+                container.innerHTML = '<div class="empty-state">В этом списке пока нет фильмов.</div>';
+                return;
+            }
+
+            container.innerHTML = inList.map(m => movieRowHtml(m, false)).join('');
+        }
+
+        function renderAddCandidates() {
+            const container = document.getElementById('addCandidatesContainer');
+            const search = (document.getElementById('searchAddInput')?.value || '').trim().toLowerCase();
+
+            let candidates = allMovies.filter(m => {
+                const lists = (m.customlists || '').split(',').map(s => s.trim());
+                return !lists.includes(selectedList);
             });
 
-            const container = document.getElementById('dynamicLists');
-            container.innerHTML = Array.from(listSet).map(listName => 
-                `<div class="nav-item" onclick="setFilter('${listName}', this)">📌 ${listName}</div>`
-            ).join('');
-        }
+            if (search) {
+                candidates = candidates.filter(m => (m.title || '').toLowerCase().includes(search));
+            }
 
-        function render() {
-            const grid = document.getElementById('contentGrid');
+            candidates.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ru'));
 
-            if (allData.length === 0) {
-                grid.innerHTML = '<div class="empty-state">Ваша коллекция пока пуста. Добавьте первый фильм в админке!</div>';
+            if (candidates.length === 0) {
+                container.innerHTML = '<div class="empty-state">Все фильмы уже в списке, либо ничего не найдено.</div>';
                 return;
             }
 
-            let filtered = [...allData];
+            // Показываем первые 50, чтобы не перегружать страницу при большой базе
+            container.innerHTML = candidates.slice(0, 50).map(m => movieRowHtml(m, true)).join('');
+        }
 
-            if (currentFilter === 'main') {
-                // Показываем всё вместе, без фильтрации по типу
-            } else if (currentFilter === 'movies' || currentFilter === 'series' || currentFilter === 'cartoons') {
-                filtered = filtered.filter(i => i.type === currentFilter);
-            } else if (currentFilter === 'top100') {
-                filtered = filtered.filter(i => i.toprank && i.toprank > 0).sort((a, b) => a.toprank - b.toprank).slice(0, 100);
-            } else if (currentFilter === 'new') {
-                const sevenDaysAgo = new Date();
-                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                filtered = filtered.filter(i => {
-                    if (!i.created_at) return false;
-                    const itemDate = new Date(i.created_at);
-                    return !isNaN(itemDate) && itemDate >= sevenDaysAgo;
-                });
-            } else if (currentFilter === 'rewatch') {
-                filtered = filtered.filter(i => i.rewatch === true);
-            } else {
-                // Точный поиск по спискам вместо простого .includes()
-                filtered = filtered.filter(i => {
-                    if (!i.customlists) return false;
-                    const lists = i.customlists.split(',').map(l => l.trim());
-                    return lists.includes(currentFilter);
-                });
-            }
+        function movieRowHtml(m, isCandidate) {
+            const typeName = m.type === 'movies' ? 'Фильм' : m.type === 'series' ? 'Сериал' : 'Мультфильм';
+            const ratingStr = (m.rating !== null && m.rating !== undefined) ? `★ ${m.rating}` : '';
+            const meta = [typeName, m.year || '', ratingStr].filter(Boolean).join(' • ');
+            const actionBtn = isCandidate
+                ? `<button class="btn-add" onclick="addMovieToList('${m.id}')">+ Добавить</button>`
+                : `<button class="btn-remove" onclick="removeMovieFromList('${m.id}')">✕ Убрать</button>`;
 
-            // Сортировка по рейтингу или году выхода (переопределяет порядок по умолчанию)
-            if (currentSort === 'rating_desc') {
-                filtered.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
-            } else if (currentSort === 'rating_asc') {
-                filtered.sort((a, b) => (a.rating ?? 999) - (b.rating ?? 999));
-            } else if (currentSort === 'year_desc') {
-                filtered.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
-            } else if (currentSort === 'year_asc') {
-                filtered.sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999));
-            }
+            return `
+            <div class="item">
+                <div class="item-info">
+                    <img src="${m.poster || ''}" alt="Постер">
+                    <div>
+                        <div class="item-title">${escapeHtml(m.title || '')}</div>
+                        <div class="item-meta">${meta}</div>
+                    </div>
+                </div>
+                <div class="actions">${actionBtn}</div>
+            </div>`;
+        }
 
-            if (filtered.length === 0) {
-                grid.className = 'grid';
-                grid.innerHTML = '<div class="empty-state">В этой категории пока ничего нет.</div>';
+        // --- СОЗДАНИЕ СПИСКА ---
+        async function createList() {
+            const input = document.getElementById('newListInput');
+            const name = input.value.trim();
+            if (!name) return;
+
+            if (allLists.some(l => l.toLowerCase() === name.toLowerCase())) {
+                alert('Список с таким названием уже существует.');
                 return;
             }
 
-            if (currentFilter === 'top100') {
-                grid.className = 'top100-list';
-                grid.innerHTML = filtered.map(item => renderTop100Row(item)).join('');
-            } else {
-                grid.className = 'grid';
-                grid.innerHTML = filtered.map(item => renderCard(item)).join('');
+            try {
+                const { error } = await supabaseClient.from('lists').insert([{ name }]);
+                if (error) throw error;
+                input.value = '';
+                selectedList = name;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось создать список. Подробности в консоли.');
             }
         }
 
-        function renderCard(item) {
-            const typeName = item.type === 'movies' ? 'Фильм' : item.type === 'series' ? 'Сериал' : 'Мультфильм';
-            return `
-            <div class="card" onclick="openModal('${item.id}')">
-                <img src="${item.poster}" alt="Постер">
-                <div class="card-info">
-                    <div class="card-title">${item.title}</div>
-                    <div class="card-meta">
-                        <span>${item.year} • ${typeName}</span>
-                        <span class="rating">★ ${item.rating || '-'}</span>
-                    </div>
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            document.getElementById('newListInput').addEventListener('keypress', e => {
+                if (e.key === 'Enter') { e.preventDefault(); createList(); }
+            });
+        });
+
+        // --- ПЕРЕИМЕНОВАНИЕ СПИСКА ---
+        function startRename() {
+            const container = document.getElementById('renameRowContainer');
+            container.innerHTML = `
+                <div class="rename-row">
+                    <input type="text" id="renameInput" value="${escapeAttr(selectedList)}">
+                    <button class="btn-save-rename" onclick="saveRename()">💾 Сохранить</button>
+                    <button class="btn-cancel-rename" onclick="renderContentPanel()">Отмена</button>
                 </div>
-            </div>
             `;
+            document.getElementById('renameInput').focus();
         }
 
-        function renderTop100Row(item) {
-            const typeName = item.type === 'movies' ? 'Фильм' : item.type === 'series' ? 'Сериал' : 'Мультфильм';
-            const rank = item.toprank;
-            const rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
-            return `
-            <div class="top100-row" onclick="openModal('${item.id}')">
-                <div class="top100-rank ${rankClass}">${rank}</div>
-                <img class="top100-poster" src="${item.poster}" alt="Постер">
-                <div class="top100-info">
-                    <div class="top100-title">${item.title}</div>
-                    <div class="top100-meta">
-                        <span>${item.year} • ${typeName}</span>
-                        <span class="rating">★ ${item.rating || '-'}</span>
-                    </div>
-                </div>
-            </div>
-            `;
-        }
-
-        function openModal(id) {
-            const item = allData.find(i => String(i.id) === String(id));
-            if (!item) return;
-
-            const typeName = item.type === 'movies' ? 'Фильм' : item.type === 'series' ? 'Сериал' : 'Мультфильм';
-            
-            // Разбиваем жанры на отдельные теги для красивого отображения
-            let genresHtml = '';
-            if (item.genres) {
-                genresHtml = item.genres.split(',').map(g => `<span class="tag">${g.trim()}</span>`).join('');
+        async function saveRename() {
+            const newName = document.getElementById('renameInput').value.trim();
+            if (!newName) return;
+            if (newName !== selectedList && allLists.some(l => l.toLowerCase() === newName.toLowerCase())) {
+                alert('Список с таким названием уже существует.');
+                return;
             }
-            
-            document.getElementById('modalBody').innerHTML = `
-                <div class="details-poster">
-                    <img src="${item.poster}" alt="Постер">
-                </div>
-                <div class="details-info">
-                    <div class="details-title">${item.title}</div>
-                    <div class="details-tags">
-                        <span class="tag">${typeName}</span>
-                        <span class="tag">${item.year}</span>
-                        <span class="tag" style="color: #f5c518;">★ ${item.rating || '-'}</span>
-                        ${genresHtml}
-                    </div>
-                    ${item.description ? `
-                    <div class="details-section">
-                        <h4>Описание</h4>
-                        <p>${item.description}</p>
-                    </div>` : ''}
-                    ${item.review ? `
-                    <div class="details-section">
-                        <h4>Мой отзыв</h4>
-                        <p>${item.review}</p>
-                    </div>` : ''}
-                </div>
-            `;
-            
-            const overlay = document.getElementById('modalOverlay');
-            overlay.style.display = 'flex';
-            setTimeout(() => overlay.classList.add('active'), 10);
-            document.body.style.overflow = 'hidden'; 
+            if (newName === selectedList) { renderContentPanel(); return; }
+
+            try {
+                // Обновляем (или создаём) запись в таблице lists
+                const { data: existingRow } = await supabaseClient.from('lists').select('*').eq('name', selectedList).maybeSingle();
+                if (existingRow) {
+                    const { error } = await supabaseClient.from('lists').update({ name: newName }).eq('id', existingRow.id);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabaseClient.from('lists').insert([{ name: newName }]);
+                    if (error) throw error;
+                }
+
+                // Обновляем customlists у всех фильмов, где встречается старое название
+                const affected = moviesInList(selectedList);
+                for (const m of affected) {
+                    const updatedLists = m.customlists.split(',').map(s => s.trim())
+                        .map(n => n === selectedList ? newName : n)
+                        .join(', ');
+                    const { error } = await supabaseClient.from('collection').update({ customlists: updatedLists }).eq('id', m.id);
+                    if (error) throw error;
+                }
+
+                selectedList = newName;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось переименовать список. Подробности в консоли.');
+            }
         }
 
-        function closeModal(event) {
-            if (event && event.target.id !== 'modalOverlay' && event.target.className !== 'modal-close') return;
-            const overlay = document.getElementById('modalOverlay');
-            overlay.classList.remove('active');
-            setTimeout(() => {
-                overlay.style.display = 'none';
-                document.body.style.overflow = ''; 
-            }, 300);
+        // --- УДАЛЕНИЕ СПИСКА ---
+        async function deleteList() {
+            const count = moviesInList(selectedList).length;
+            const msg = count > 0
+                ? `Удалить список «${selectedList}»? Он будет убран у ${count} фильм(ов), сами фильмы удалены не будут.`
+                : `Удалить список «${selectedList}»?`;
+            if (!confirm(msg)) return;
+
+            try {
+                // Убираем список из всех фильмов
+                const affected = moviesInList(selectedList);
+                for (const m of affected) {
+                    const updatedLists = m.customlists.split(',').map(s => s.trim())
+                        .filter(n => n !== selectedList)
+                        .join(', ');
+                    const { error } = await supabaseClient.from('collection').update({ customlists: updatedLists }).eq('id', m.id);
+                    if (error) throw error;
+                }
+
+                // Удаляем саму запись списка (если она есть в таблице lists)
+                const { error: delError } = await supabaseClient.from('lists').delete().eq('name', selectedList);
+                if (delError) throw delError;
+
+                selectedList = null;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось удалить список. Подробности в консоли.');
+            }
+        }
+
+        // --- ДОБАВЛЕНИЕ / УДАЛЕНИЕ ФИЛЬМА ИЗ СПИСКА ---
+        async function addMovieToList(movieId) {
+            const movie = allMovies.find(m => String(m.id) === String(movieId));
+            if (!movie) return;
+
+            const lists = (movie.customlists || '').split(',').map(s => s.trim()).filter(Boolean);
+            if (!lists.includes(selectedList)) lists.push(selectedList);
+
+            try {
+                const { error } = await supabaseClient.from('collection').update({ customlists: lists.join(', ') }).eq('id', movie.id);
+                if (error) throw error;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось добавить фильм в список. Подробности в консоли.');
+            }
+        }
+
+        async function removeMovieFromList(movieId) {
+            const movie = allMovies.find(m => String(m.id) === String(movieId));
+            if (!movie) return;
+
+            const lists = (movie.customlists || '').split(',').map(s => s.trim()).filter(n => n && n !== selectedList);
+
+            try {
+                const { error } = await supabaseClient.from('collection').update({ customlists: lists.join(', ') }).eq('id', movie.id);
+                if (error) throw error;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось убрать фильм из списка. Подробности в консоли.');
+            }
+        }
+
+        // --- ВСПОМОГАТЕЛЬНОЕ ---
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+        function escapeAttr(str) {
+            return String(str).replace(/'/g, "\\'");
         }
     </script>
 </body>
