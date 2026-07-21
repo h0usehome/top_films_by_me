@@ -108,7 +108,12 @@
                         <option value="cartoons">Мультфильм</option>
                     </select>
                     <input type="text" id="f_title" placeholder="Название" autocomplete="off" required>
-                    <input type="url" id="f_poster" placeholder="Ссылка на постер (URL)" autocomplete="off" required>
+
+                    <div class="row" style="align-items: stretch;">
+                        <input type="url" id="f_poster" placeholder="Ссылка на постер (URL)" autocomplete="off" required style="flex: 1;">
+                        <button type="button" onclick="autoFindPoster(this)" style="flex: 0 0 auto; white-space: nowrap; background: #2b2b2b; color: #fff; border: none; border-radius: 8px; padding: 0 16px; cursor: pointer; font-weight: 600;">🔍 Найти постер</button>
+                    </div>
+                    <div id="posterSearchResults"></div>
                     
                     <div class="row">
                         <input type="number" id="f_year" placeholder="Год выпуска" required>
@@ -200,11 +205,13 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0YWNidmN3c3lhanBlYWNkbXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NjM4NDgsImV4cCI6MjEwMDEzOTg0OH0.OhjANu7A7Wb7GUsBjVzrvjkGJlgVsehSf6EyC1DMxR8';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        const TMDB_API_KEY = '3a3430d210cbf6ae4ee54b1ffc523ddd';
+
         let currentData = [];
         let editingItem = null;
 
         // Базовые жанры
-        const STANDARD_GENRES = ['Боевик', 'Комедия', 'Драма', 'Фантастика', 'Триллер', 'Ужасы', 'Мелодрама', 'Детектив', 'Приключения', 'Фэнтези', 'Биография', 'Документальный', 'Спорт', 'Криминал', 'Мюзикл'];
+        const STANDARD_GENRES = ['Боевик', 'Комедия', 'Драма', 'Фантастика', 'Триллер', 'Ужасы', 'Мелодрама', 'Детектив', 'Приключения', 'Фэнтези', 'Аниме', 'Документальный', 'Спорт', 'Криминал', 'Мюзикл'];
 
         async function load() {
             try {
@@ -389,6 +396,83 @@
             switchTab('crud');
         }
 
+        // --- АВТОПОИСК ПОСТЕРА ЧЕРЕЗ TMDB ---
+        async function tmdbSearch(mediaType, title, year) {
+            let url = `https://api.themoviedb.org/3/search/${mediaType}?api_key=${TMDB_API_KEY}&language=ru-RU&query=${encodeURIComponent(title)}`;
+            if (year) {
+                url += mediaType === 'tv' ? `&first_air_date_year=${year}` : `&year=${year}`;
+            }
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('TMDB request failed: ' + res.status);
+            const data = await res.json();
+            return data.results || [];
+        }
+
+        async function autoFindPoster(btn) {
+            const title = document.getElementById('f_title').value.trim();
+            const year = document.getElementById('f_year').value.trim();
+            const type = document.getElementById('f_type').value;
+            const resultsBox = document.getElementById('posterSearchResults');
+
+            if (!title) {
+                alert('Сначала введите название фильма.');
+                return;
+            }
+
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ Ищу...';
+            resultsBox.innerHTML = '';
+
+            try {
+                const primaryType = type === 'series' ? 'tv' : 'movie';
+                const fallbackType = primaryType === 'tv' ? 'movie' : 'tv';
+
+                let results = await tmdbSearch(primaryType, title, year);
+                if (results.length === 0) results = await tmdbSearch(fallbackType, title, year);
+                if (results.length === 0 && year) {
+                    results = await tmdbSearch(primaryType, title, null);
+                    if (results.length === 0) results = await tmdbSearch(fallbackType, title, null);
+                }
+
+                results = results.filter(r => r.poster_path);
+
+                if (results.length === 0) {
+                    resultsBox.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Постеры не найдены. Попробуйте вставить ссылку вручную или изменить название.</div>';
+                    return;
+                }
+
+                renderPosterCandidates(results.slice(0, 6));
+            } catch (err) {
+                console.error(err);
+                alert('Ошибка при поиске постера. Подробности в консоли.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        function renderPosterCandidates(results) {
+            const container = document.getElementById('posterSearchResults');
+            container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); margin: 10px 0 6px;">Выберите правильный постер:</div>' +
+                '<div style="display: flex; gap: 10px; flex-wrap: wrap;">' +
+                results.map(r => {
+                    const posterUrl = `https://image.tmdb.org/t/p/w300${r.poster_path}`;
+                    const name = (r.title || r.name || 'Без названия').replace(/'/g, "\\'");
+                    const dateStr = r.release_date || r.first_air_date || '';
+                    const yearStr = dateStr ? dateStr.slice(0, 4) : '?';
+                    return `<div style="width: 100px; cursor: pointer; text-align: center;" onclick="selectPoster('${posterUrl}')">
+                        <img src="${posterUrl}" style="width: 100px; height: 150px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; transition: 0.2s;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='transparent'">
+                        <div style="font-size: 11px; margin-top: 5px; color: #ccc; line-height: 1.3;">${name} (${yearStr})</div>
+                    </div>`;
+                }).join('') + '</div>';
+        }
+
+        function selectPoster(url) {
+            document.getElementById('f_poster').value = url;
+            document.getElementById('posterSearchResults').innerHTML = '<div style="color: #2ecc71; font-size: 13px; padding: 6px 0;">✅ Постер выбран</div>';
+        }
+
         function cancel() {
             editingItem = null;
             document.getElementById('adminForm').reset();
@@ -398,6 +482,7 @@
             document.getElementById('formTitle').innerText = 'Добавить новую запись';
             document.getElementById('btnCancel').style.display = 'none';
             document.getElementById('btnDelete').style.display = 'none';
+            document.getElementById('posterSearchResults').innerHTML = '';
         }
 
         async function deleteCurrentEditing() {
