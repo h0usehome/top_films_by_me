@@ -175,16 +175,24 @@
     <!-- Основной контент -->
     <main class="main-content">
         <header>
-            <button class="burger" onclick="toggleSidebar()">☰</button>
-            <div class="page-title" id="pageTitle">Главная</div>
-            <select class="sort-select" id="sortSelect" onchange="setSort(this.value)">
-                <option value="default">Сортировка: по умолчанию</option>
-                <option value="rating_desc">Рейтинг: сначала высокий</option>
-                <option value="rating_asc">Рейтинг: сначала низкий</option>
-                <option value="year_desc">Год выхода: сначала новые</option>
-                <option value="year_asc">Год выхода: сначала старые</option>
-            </select>
-        </header>
+    <button class="burger" onclick="toggleSidebar()">☰</button>
+    <div class="page-title" id="pageTitle">Главная</div>
+    
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <!-- Новый фильтр по жанрам -->
+        <select class="sort-select" id="genreSelect" onchange="setGenreFilter(this.value)">
+            <option value="all">Все жанры</option>
+        </select>
+
+        <select class="sort-select" id="sortSelect" onchange="setSort(this.value)">
+            <option value="default">Сортировка: по умолчанию</option>
+            <option value="rating_desc">Рейтинг: сначала высокий</option>
+            <option value="rating_asc">Рейтинг: сначала низкий</option>
+            <option value="year_desc">Год выхода: сначала новые</option>
+            <option value="year_asc">Год выхода: сначала старые</option>
+        </select>
+    </div>
+</header>
 
         <div class="content-wrapper">
             <div class="grid" id="contentGrid">
@@ -212,6 +220,36 @@
         let allData = [];
         let currentFilter = 'main'; 
         let currentSort = 'default';
+        let currentGenre = 'all'; 
+
+        // Собираем уникальные жанры и добавляем их в select
+        function generateGenres() {
+            const genreSet = new Set();
+            allData.forEach(item => {
+                if(item.genres) {
+                    item.genres.split(',').forEach(g => {
+                        const cleanName = g.trim();
+                        if(cleanName) genreSet.add(cleanName);
+                    });
+                }
+            });
+        
+            const select = document.getElementById('genreSelect');
+            // Сортируем жанры по алфавиту
+            const sortedGenres = Array.from(genreSet).sort((a, b) => a.localeCompare(b, 'ru'));
+            
+            sortedGenres.forEach(genre => {
+                const option = document.createElement('option');
+                option.value = genre;
+                option.textContent = genre;
+                select.appendChild(option);
+            });
+        }
+        
+        function setGenreFilter(genre) {
+            currentGenre = genre;
+            render();
+        }
 
         // Обход блокировки постеров TMDB на мобильных сетях: у некоторых
         // мобильных операторов домен image.tmdb.org блокируется сильнее,
@@ -259,6 +297,7 @@
                 
                 allData = data || [];
                 generateCustomLists();
+                generateGenres();
                 render();
             } catch (error) {
                 console.error("Ошибка Supabase:", error);
@@ -274,9 +313,13 @@
             currentFilter = filterType;
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
-
+        
             document.getElementById('pageTitle').textContent = FILTER_TITLES[filterType] || el.textContent.trim();
             
+            // Сброс фильтра жанров при смене вкладки сайдбара
+            document.getElementById('genreSelect').value = 'all';
+            currentGenre = 'all';
+        
             if(window.innerWidth <= 768) toggleSidebar(); 
             render();
         }
@@ -313,6 +356,7 @@
 
             let filtered = [...allData];
 
+            // 1. Фильтрация по боковому меню (категории, подборки, списки)
             if (currentFilter === 'main') {
                 // Показываем всё вместе, без фильтрации по типу
             } else if (currentFilter === 'movies' || currentFilter === 'series' || currentFilter === 'cartoons') {
@@ -338,7 +382,17 @@
                 });
             }
 
-            // Сортировка по рейтингу или году выхода (переопределяет порядок по умолчанию)
+            // --- НОВЫЙ БЛОК: Фильтрация по жанрам из верхнего меню ---
+            if (currentGenre !== 'all') {
+                filtered = filtered.filter(i => {
+                    if (!i.genres) return false;
+                    const itemGenres = i.genres.split(',').map(g => g.trim());
+                    return itemGenres.includes(currentGenre);
+                });
+            }
+            // ----------------------------------------------------------
+
+            // 2. Сортировка по рейтингу или году выхода (переопределяет порядок по умолчанию)
             if (currentSort === 'rating_desc') {
                 filtered.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
             } else if (currentSort === 'rating_asc') {
@@ -348,7 +402,7 @@
             } else if (currentSort === 'year_asc') {
                 filtered.sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999));
             }
-
+            
             if (filtered.length === 0) {
                 grid.className = 'grid';
                 grid.innerHTML = '<div class="empty-state">В этой категории пока ничего нет.</div>';
