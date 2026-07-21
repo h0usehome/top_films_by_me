@@ -44,6 +44,11 @@
         }
         .burger { display: none; background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
         .page-title { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+        .sort-select {
+            background: var(--surface); color: var(--text-main); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px; padding: 8px 12px; font-size: 14px; cursor: pointer; outline: none;
+        }
+        .sort-select:hover { border-color: var(--primary); }
         
         .content-wrapper { padding: 40px; }
 
@@ -139,7 +144,13 @@
         <header>
             <button class="burger" onclick="toggleSidebar()">☰</button>
             <div class="page-title" id="pageTitle">Главная</div>
-            <div style="width: 24px;" class="spacer"></div>
+            <select class="sort-select" id="sortSelect" onchange="setSort(this.value)">
+                <option value="default">Сортировка: по умолчанию</option>
+                <option value="rating_desc">Рейтинг: сначала высокий</option>
+                <option value="rating_asc">Рейтинг: сначала низкий</option>
+                <option value="year_desc">Год выхода: сначала новые</option>
+                <option value="year_asc">Год выхода: сначала старые</option>
+            </select>
         </header>
 
         <div class="content-wrapper">
@@ -167,6 +178,7 @@
         
         let allData = [];
         let currentFilter = 'main'; 
+        let currentSort = 'default';
 
         const FILTER_TITLES = {
             main: '🏠 Главная',
@@ -206,6 +218,11 @@
             document.getElementById('pageTitle').textContent = FILTER_TITLES[filterType] || el.textContent.trim();
             
             if(window.innerWidth <= 768) toggleSidebar(); 
+            render();
+        }
+
+        function setSort(sortType) {
+            currentSort = sortType;
             render();
         }
 
@@ -259,6 +276,17 @@
                     const lists = i.customlists.split(',').map(l => l.trim());
                     return lists.includes(currentFilter);
                 });
+            }
+
+            // Сортировка по рейтингу или году выхода (переопределяет порядок по умолчанию)
+            if (currentSort === 'rating_desc') {
+                filtered.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
+            } else if (currentSort === 'rating_asc') {
+                filtered.sort((a, b) => (a.rating ?? 999) - (b.rating ?? 999));
+            } else if (currentSort === 'year_desc') {
+                filtered.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+            } else if (currentSort === 'year_asc') {
+                filtered.sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999));
             }
 
             if (filtered.length === 0) {
