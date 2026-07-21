@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Админ-панель</title>
+    <title>Общая база — Админ-панель</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23141414%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23e50914%22%20stroke-width%3D%224%22/%3E%0A%3Cg%20fill%3D%22%23e50914%22%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3C/g%3E%0A%3C/svg%3E">
     <style>
         :root {
@@ -13,205 +13,98 @@
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 40px 20px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        
-        /* Вкладки навигации */
-        .admin-nav { display: flex; gap: 15px; margin-bottom: 30px; justify-content: center; }
-        .nav-tab { padding: 12px 25px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 16px; transition: 0.3s; border: 1px solid transparent; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 20px; font-weight: 800; letter-spacing: 1px; }
+
+        /* Навигация назад в админку */
+        .admin-nav { display: flex; gap: 15px; margin-bottom: 30px; justify-content: center; flex-wrap: wrap; }
+        .nav-tab { padding: 12px 25px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 16px; transition: 0.3s; border: 1px solid transparent; text-decoration: none; color: inherit; display: inline-block; }
         .nav-tab.active { background: rgba(229, 9, 20, 0.1); border-color: var(--primary); color: var(--text); }
         .nav-tab:hover:not(.active) { background: rgba(255,255,255,0.1); }
-        
-        .section { display: none; }
-        .section.active { display: block; animation: fadeIn 0.3s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         .panel { background: var(--surface); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 30px; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h1 { text-align: center; margin-bottom: 20px; font-weight: 800; letter-spacing: 1px; }
-        h2 { text-align: center; margin-bottom: 25px; font-size: 20px; color: var(--muted); }
-        
-        form { display: flex; flex-direction: column; gap: 20px; }
-        input, select, textarea { width: 100%; padding: 14px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 15px; transition: 0.3s; }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
-        .row { display: flex; gap: 15px; align-items: center; }
-        .row > * { flex: 1; }
-        textarea { min-height: 100px; resize: vertical; }
-        
-        button { padding: 15px; border-radius: 8px; border: none; font-weight: 600; font-size: 15px; cursor: pointer; transition: 0.3s; color: white; }
-        .btn-main { background: var(--primary); width: 100%; }
-        .btn-main:hover { background: #f40612; }
-        .btn-cancel { background: #333; display: none; width: 100%; }
-        .btn-cancel:hover { background: #444; }
 
-        /* Чекбоксы в виде тегов (Жанры и Списки) */
-        .tag-group { border: 1px solid rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; background: rgba(0,0,0,0.2); }
-        .tag-group-title { font-size: 13px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; font-weight: 600; }
-        .tags-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-        
-        .tag-checkbox { display: inline-block; cursor: pointer; }
-        .tag-checkbox input { display: none; }
-        .tag-checkbox span { display: inline-block; padding: 6px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; font-size: 14px; transition: 0.2s; user-select: none; }
-        .tag-checkbox input:checked + span { background: var(--primary); border-color: var(--primary); color: white; }
-        .tag-checkbox:hover span { background: rgba(255,255,255,0.15); }
-
-        .add-list-row { display: flex; gap: 10px; }
-        .add-list-row input { padding: 10px; font-size: 14px; }
-        .add-list-row button { padding: 10px 20px; width: auto; background: #333; }
-        .add-list-row button:hover { background: #444; }
-
-        /* Одиночный переключатель (ТОП-100) */
-        .switch-label { display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; user-select: none; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }
-        .switch-label input { width: 20px; height: 20px; accent-color: var(--primary); cursor: pointer; }
+        /* Панель инструментов: поиск + сортировка */
+        .toolbar { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        .toolbar input, .toolbar select {
+            padding: 12px 14px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; color: #fff; font-size: 14px; outline: none;
+        }
+        .toolbar input:focus, .toolbar select:focus { border-color: var(--primary); }
+        .toolbar input#searchInput { flex: 1; min-width: 200px; }
+        .result-count { color: var(--muted); font-size: 13px; margin-bottom: 15px; }
 
         /* Список базы данных */
-        .item { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
+        .item { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; gap: 10px; }
         .item-info { display: flex; gap: 15px; align-items: center; }
-        .item-info img { width: 45px; height: 65px; object-fit: cover; border-radius: 4px; }
+        .item-info img { width: 50px; height: 72px; object-fit: cover; border-radius: 4px; background: #000; }
         .item-title { font-weight: 600; font-size: 16px; margin-bottom: 4px; }
-        .item-meta { color: var(--muted); font-size: 13px; }
-        
+        .item-meta { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
         .actions { display: flex; gap: 10px; }
-        .actions button { padding: 8px 12px; font-size: 13px; border-radius: 6px; display: flex; align-items: center; gap: 6px; width: auto; }
+        .actions button, .actions a {
+            padding: 8px 12px; font-size: 13px; border-radius: 6px; display: flex; align-items: center; gap: 6px;
+            width: auto; border: none; cursor: pointer; text-decoration: none; font-weight: 600;
+        }
         .btn-edit { background: #2b2b2b; color: #fff; }
         .btn-edit:hover { background: #404040; }
         .btn-del { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
         .btn-del:hover { background: var(--primary); color: white; }
 
-        /* Drag and Drop ТОП-100 */
-        .drag-item { display: flex; align-items: center; gap: 15px; background: var(--surface); padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); cursor: grab; }
-        .drag-item:active { cursor: grabbing; border-color: var(--primary); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-        .drag-rank { font-size: 24px; font-weight: 900; color: #444; width: 40px; text-align: center; }
-        .drag-item img { width: 40px; height: 60px; object-fit: cover; border-radius: 4px; pointer-events: none; }
-        .drag-title { font-weight: bold; flex: 1; pointer-events: none; }
-        .drag-handle { color: var(--muted); font-size: 20px; padding: 0 10px; }
+        .empty-state { text-align: center; color: var(--muted); padding: 30px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⚙️ Управление панелью</h1>
-        
-        <!-- Навигация -->
+        <h1>📋 Общая база</h1>
+
         <div class="admin-nav">
-            <div class="nav-tab active" onclick="switchTab('crud')">Добавление / Редактирование</div>
-            <div class="nav-tab" onclick="switchTab('top100')">Редактор ТОП-100</div>
-            <a class="nav-tab" href="database.html" style="text-decoration: none; color: inherit; display: inline-block;">📋 Общая база</a>
-            <a class="nav-tab" href="lists.html" style="text-decoration: none; color: inherit; display: inline-block;">🗂️ Мои списки</a>
+            <a class="nav-tab" href="admin.html">➕ Добавление / Редактирование</a>
+            <a class="nav-tab active" href="database.html">📋 Общая база</a>
+            <a class="nav-tab" href="lists.html">🗂️ Мои списки</a>
         </div>
-        
-        <!-- Раздел 1: Управление базой -->
-        <div id="crud-section" class="section active">
-            <div class="panel">
-                <h2 id="formTitle">Добавить новую запись</h2>
-                <form id="adminForm" autocomplete="off">
-                    <select id="f_type" required>
-                        <option value="movies">Фильм</option>
-                        <option value="series">Сериал</option>
-                        <option value="cartoons">Мультфильм</option>
-                    </select>
-                    <input type="text" id="f_title" placeholder="Название" autocomplete="off" required>
 
-                    <div class="row" style="align-items: stretch;">
-                        <input type="url" id="f_poster" placeholder="Ссылка на постер (URL)" autocomplete="off" required style="flex: 1;">
-                        <button type="button" onclick="autoFindPoster(this)" style="flex: 0 0 auto; white-space: nowrap; background: #2b2b2b; color: #fff; border: none; border-radius: 8px; padding: 0 16px; cursor: pointer; font-weight: 600;">🔍 Найти постер</button>
-                    </div>
-                    <div id="posterSearchResults"></div>
-                    
-                    <div class="row">
-                        <input type="number" id="f_year" placeholder="Год выпуска" required>
-                        <select id="f_rating" required>
-                            <option value="" disabled selected>Моя оценка</option>
-                            <option value="10">★★★★★★★★★★ (10)</option>
-                            <option value="9">★★★★★★★★★☆ (9)</option>
-                            <option value="8">★★★★★★★★☆☆ (8)</option>
-                            <option value="7">★★★★★★★☆☆☆ (7)</option>
-                            <option value="6">★★★★★★☆☆☆☆ (6)</option>
-                            <option value="5">★★★★★☆☆☆☆☆ (5)</option>
-                            <option value="4">★★★★☆☆☆☆☆☆ (4)</option>
-                            <option value="3">★★★☆☆☆☆☆☆☆ (3)</option>
-                            <option value="2">★★☆☆☆☆☆☆☆☆ (2)</option>
-                            <option value="1">★☆☆☆☆☆☆☆☆☆ (1)</option>
-                            <option value="0">☆☆☆☆☆☆☆☆☆☆ (0)</option>
-                        </select>
-                    </div>
+        <div class="panel" id="autoFillPanel">
+            <h2>🪄 Автопоиск постеров</h2>
+            <p style="color: var(--muted); font-size: 14px; margin: 10px 0 15px;">Найдёт постеры для фильмов, у которых поле «Ссылка на постер» пустое, и предложит выбрать подходящий вариант для каждого.</p>
+            <button type="button" id="scanBtn" onclick="scanMissingPosters()" style="background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-weight: 700; cursor: pointer; font-size: 14px;">🔍 Найти постеры для фильмов без постера</button>
+            <div id="scanProgress" style="color: var(--muted); font-size: 13px; margin-top: 12px;"></div>
+            <div id="scanResults" style="margin-top: 15px;"></div>
+        </div>
 
-                    <!-- Выбор жанров (Теги) -->
-                    <div class="tag-group">
-                        <div class="tag-group-title">Жанры (выберите один или несколько)</div>
-                        <div class="tags-container" id="genresContainer">
-                            <!-- Заполняется через JS -->
-                        </div>
-                    </div>
-
-                    <!-- Выбор списков/подборок -->
-                    <div class="tag-group">
-                        <div class="tag-group-title">Подборки / Мои списки</div>
-                        <div class="tags-container" id="listsContainer">
-                            <!-- Заполняется через JS -->
-                        </div>
-                        <div class="add-list-row">
-                            <input type="text" id="newListName" placeholder="Название новой подборки">
-                            <button type="button" onclick="addNewList()">Добавить</button>
-                        </div>
-                    </div>
-
-                    <!-- Топ 100 Checkbox -->
-                    <label class="switch-label">
-                        <input type="checkbox" id="f_inTop100">
-                        Добавить в подборку ТОП-100
-                    </label>
-
-                    <!-- Пересматриваем любимое Checkbox -->
-                    <label class="switch-label">
-                        <input type="checkbox" id="f_rewatch">
-                        Добавить в подборку «Пересматриваем любимое»
-                    </label>
-
-                    <textarea id="f_desc" placeholder="Описание сюжета"></textarea>
-                    <textarea id="f_review" placeholder="Личный отзыв"></textarea>
-                    
-                    <div class="row">
-                        <button type="button" id="btnCancel" class="btn-cancel">Отменить</button>
-                        <button type="button" id="btnDelete" class="btn-del" style="display: none; width: 100%; padding: 15px;" onclick="deleteCurrentEditing()">🗑️ Удалить</button>
-                        <button type="submit" id="btnSubmit" class="btn-main">Сохранить запись</button>
-                    </div>
-                </form>
+        <div class="panel">
+            <div class="toolbar">
+                <input type="text" id="searchInput" placeholder="🔍 Поиск по названию..." oninput="applyFilters()">
+                <select id="typeFilter" onchange="applyFilters()">
+                    <option value="all">Все типы</option>
+                    <option value="movies">Фильмы</option>
+                    <option value="series">Сериалы</option>
+                    <option value="cartoons">Мультфильмы</option>
+                </select>
+                <select id="sortSelect" onchange="applyFilters()">
+                    <option value="default">Сортировка: по умолчанию</option>
+                    <option value="rating_desc">Рейтинг: сначала высокий</option>
+                    <option value="rating_asc">Рейтинг: сначала низкий</option>
+                    <option value="year_desc">Год выхода: сначала новые</option>
+                    <option value="year_asc">Год выхода: сначала старые</option>
+                </select>
             </div>
+            <div class="result-count" id="resultCount"></div>
+            <div id="listContainer">Загрузка...</div>
         </div>
-
-        <!-- Раздел 2: Drag and Drop ТОП-100 -->
-        <div id="top100-section" class="section">
-            <div class="panel">
-                <h2>Перетаскивайте фильмы, чтобы изменить их места</h2>
-                <p style="text-align: center; color: var(--muted); margin-bottom: 20px; font-size: 14px;">
-                    После расстановки не забудьте нажать кнопку "Сохранить порядок" в самом низу.
-                </p>
-                
-                <div id="top100DragContainer">
-                    <!-- Заполняется через JS -->
-                </div>
-                
-                <button type="button" class="btn-main" style="margin-top: 20px;" onclick="saveTop100Order()" id="btnSaveTop">💾 Сохранить новый порядок</button>
-            </div>
-        </div>
-
     </div>
 
     <!-- Библиотека Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Библиотека для плавного Drag and Drop (работает и на мобилках) -->
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
-    
-    <script>
-        const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0YWNidmN3c3lhanBlYWNkbXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NjM4NDgsImV4cCI6MjEwMDEzOTg0OH0.OhjANu7A7Wb7GUsBjVzrvjkGJlgVsehSf6EyC1DMxR8';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    <!-- Общие для всех страниц админки: ключи и функции поиска постеров -->
+    <script src="config.js"></script>
+    <script src="tmdb-helper.js"></script>
 
-        const TMDB_API_KEY = '3a3430d210cbf6ae4ee54b1ffc523ddd';
+    <script>
+        // SUPABASE_URL, SUPABASE_KEY, supabaseClient и TMDB_API_KEY
+        // теперь подключаются из общего config.js (см. <head> выше)
 
         let currentData = [];
-        let editingItem = null;
-
-        // Базовые жанры
-        const STANDARD_GENRES = ['Боевик', 'Комедия', 'Драма', 'Фантастика', 'Триллер', 'Ужасы', 'Мелодрама', 'Детектив', 'Приключения', 'Фэнтези', 'Аниме', 'Документальный', 'Спорт', 'Криминал', 'Мюзикл'];
 
         async function load() {
             try {
@@ -222,381 +115,188 @@
 
                 if (error) throw error;
                 currentData = data || [];
-                
-                renderTop100();
-                renderGenres();
-                renderCustomLists();
-
-                // Если пришли по ссылке "Редактировать" со страницы database.html
-                const params = new URLSearchParams(window.location.search);
-                const editId = params.get('edit');
-                if (editId) edit(editId);
+                applyFilters();
             } catch (error) {
                 console.error(error);
-                alert("Ошибка подключения к БД. Подробности в консоли.");
+                document.getElementById('listContainer').innerHTML = '<p style="color:var(--primary);">Ошибка подключения к БД.</p>';
             }
         }
 
-        // --- ЛОГИКА ТЕГОВ (Жанры и Списки) ---
-        function renderGenres() {
-            const container = document.getElementById('genresContainer');
-            container.innerHTML = STANDARD_GENRES.map(g => `
-                <label class="tag-checkbox">
-                    <input type="checkbox" class="cb-genre" value="${g}">
-                    <span>${g}</span>
-                </label>
-            `).join('');
-        }
+        function applyFilters() {
+            const search = document.getElementById('searchInput').value.trim().toLowerCase();
+            const typeFilter = document.getElementById('typeFilter').value;
+            const sortType = document.getElementById('sortSelect').value;
 
-        function renderCustomLists() {
-            const listSet = new Set();
-            currentData.forEach(i => {
-                if (i.customlists) {
-                    i.customlists.split(',').forEach(l => {
-                        if (l.trim()) listSet.add(l.trim());
-                    });
-                }
-            });
+            let filtered = [...currentData];
 
-            const container = document.getElementById('listsContainer');
-            container.innerHTML = Array.from(listSet).map(l => createCheckboxHTML(l, 'cb-list')).join('');
-        }
-
-        function createCheckboxHTML(val, className, checked = false) {
-            return `
-                <label class="tag-checkbox">
-                    <input type="checkbox" class="${className}" value="${val}" ${checked ? 'checked' : ''}>
-                    <span>${val}</span>
-                </label>
-            `;
-        }
-
-        function addNewList() {
-            const input = document.getElementById('newListName');
-            const val = input.value.trim();
-            if (!val) return;
-
-            const existing = Array.from(document.querySelectorAll('.cb-list')).map(cb => cb.value.toLowerCase());
-            if (!existing.includes(val.toLowerCase())) {
-                const container = document.getElementById('listsContainer');
-                container.insertAdjacentHTML('beforeend', createCheckboxHTML(val, 'cb-list', true));
+            if (search) {
+                filtered = filtered.filter(i => (i.title || '').toLowerCase().includes(search));
             }
-            input.value = '';
-        }
-
-        document.getElementById('newListName').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                addNewList();
-            }
-        });
-
-        // --- ЛОГИКА ВКЛАДОК ---
-        function switchTab(tabId) {
-            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-            
-            // Надежный поиск вкладки для активации
-            const tabButton = document.querySelector(`.nav-tab[onclick*="${tabId}"]`);
-            if (tabButton) tabButton.classList.add('active');
-            
-            document.getElementById(tabId + '-section').classList.add('active');
-        }
-
-        // --- ОТРИСОВКА БАЗЫ (перенесена на database.html) ---
-
-        // --- СОХРАНЕНИЕ / ДОБАВЛЕНИЕ (CRUD) ---
-        document.getElementById('adminForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('btnSubmit');
-            btn.innerText = 'Сохранение...'; btn.disabled = true;
-
-            const selectedGenres = Array.from(document.querySelectorAll('.cb-genre:checked')).map(cb => cb.value).join(', ');
-            const selectedLists = Array.from(document.querySelectorAll('.cb-list:checked')).map(cb => cb.value).join(', ');
-            
-            const inTop100 = document.getElementById('f_inTop100').checked;
-            let finalRank = null;
-            if (inTop100) {
-                finalRank = (editingItem && editingItem.toprank > 0) ? editingItem.toprank : 999;
+            if (typeFilter !== 'all') {
+                filtered = filtered.filter(i => i.type === typeFilter);
             }
 
-            const payload = {
-                type: document.getElementById('f_type').value,
-                title: document.getElementById('f_title').value,
-                poster: document.getElementById('f_poster').value,
-                year: parseInt(document.getElementById('f_year').value) || null,
-                rating: (() => { const v = document.getElementById('f_rating').value; return v === '' ? null : parseInt(v); })(),
-                genres: selectedGenres,
-                customlists: selectedLists,
-                toprank: finalRank,
-                rewatch: document.getElementById('f_rewatch').checked,
-                description: document.getElementById('f_desc').value,
-                review: document.getElementById('f_review').value
-            };
-
-            try {
-                if (editingItem) {
-                    const { error } = await supabaseClient.from('collection').update(payload).eq('id', editingItem.id);
-                    if (error) throw error;
-                } else {
-                    const { error } = await supabaseClient.from('collection').insert([payload]);
-                    if (error) throw error;
-                }
-
-                cancel(); 
-                await load();
-            } catch (error) {
-                console.error("Полная ошибка сохранения:", error);
-                // Детальный вывод ошибки в Alert
-                alert("ОШИБКА ОТ БАЗЫ ДАННЫХ:\n" + 
-                      "Сообщение: " + (error.message || error.toString() || "нет") + "\n" + 
-                      "Детали: " + (error.details || "нет") + "\n" + 
-                      "Код: " + (error.code || "нет"));
-            } finally {
-                btn.innerText = 'Сохранить запись'; 
-                btn.disabled = false;
-            }
-        };
-
-        function edit(id) {
-            editingItem = currentData.find(i => String(i.id) === String(id));
-            if (!editingItem) return;
-            
-            document.getElementById('f_type').value = editingItem.type || 'movies';
-            document.getElementById('f_title').value = editingItem.title || '';
-            document.getElementById('f_poster').value = editingItem.poster || '';
-            document.getElementById('f_year').value = editingItem.year || '';
-            document.getElementById('f_rating').value = (editingItem.rating !== null && editingItem.rating !== undefined) ? editingItem.rating : '';
-            document.getElementById('f_desc').value = editingItem.description || '';
-            document.getElementById('f_review').value = editingItem.review || '';
-            
-            document.querySelectorAll('.cb-genre').forEach(cb => cb.checked = false);
-            if (editingItem.genres) {
-                const genresArr = editingItem.genres.split(',').map(s => s.trim());
-                document.querySelectorAll('.cb-genre').forEach(cb => {
-                    if (genresArr.includes(cb.value)) cb.checked = true;
-                });
+            if (sortType === 'rating_desc') {
+                filtered.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
+            } else if (sortType === 'rating_asc') {
+                filtered.sort((a, b) => (a.rating ?? 999) - (b.rating ?? 999));
+            } else if (sortType === 'year_desc') {
+                filtered.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+            } else if (sortType === 'year_asc') {
+                filtered.sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999));
             }
 
-            document.querySelectorAll('.cb-list').forEach(cb => cb.checked = false);
-            if (editingItem.customlists) {
-                const listsArr = editingItem.customlists.split(',').map(s => s.trim());
-                document.querySelectorAll('.cb-list').forEach(cb => {
-                    if (listsArr.includes(cb.value)) cb.checked = true;
-                });
-            }
-
-            document.getElementById('f_inTop100').checked = (editingItem.toprank && editingItem.toprank > 0);
-            document.getElementById('f_rewatch').checked = !!editingItem.rewatch;
-            
-            document.getElementById('formTitle').innerText = 'Редактирование записи';
-            document.getElementById('btnCancel').style.display = 'block';
-            document.getElementById('btnDelete').style.display = 'block';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            switchTab('crud');
+            renderList(filtered);
         }
 
-        // --- АВТОПОИСК ПОСТЕРА ЧЕРЕЗ TMDB ---
-        async function tmdbSearchMulti(title, language) {
-            const url = `https://api.themoviedb.org/3/search/multi?api_key=${TMDB_API_KEY}&language=${language}&include_adult=false&query=${encodeURIComponent(title)}`;
-            const res = await fetch(url);
-            const data = await res.json();
-            if (!res.ok || data.success === false) {
-                throw new Error(data.status_message || ('TMDB request failed: ' + res.status));
-            }
-            console.log(`TMDB multi search "${title}" [${language}]:`, data.results);
-            return (data.results || []).filter(r => (r.media_type === 'movie' || r.media_type === 'tv') && r.poster_path);
-        }
+        function renderList(list) {
+            document.getElementById('resultCount').textContent = `Найдено: ${list.length} из ${currentData.length}`;
 
-        function rankTmdbResults(results, preferredType, year) {
-            return [...results].sort((a, b) => {
-                // Сначала совпадение по нужному типу (фильм/сериал)
-                const aTypeMatch = a.media_type === preferredType ? 1 : 0;
-                const bTypeMatch = b.media_type === preferredType ? 1 : 0;
-                if (aTypeMatch !== bTypeMatch) return bTypeMatch - aTypeMatch;
-
-                // Затем совпадение по году, если он указан
-                if (year) {
-                    const aYear = (a.release_date || a.first_air_date || '').slice(0, 4);
-                    const bYear = (b.release_date || b.first_air_date || '').slice(0, 4);
-                    const aYearMatch = aYear === String(year) ? 1 : 0;
-                    const bYearMatch = bYear === String(year) ? 1 : 0;
-                    if (aYearMatch !== bYearMatch) return bYearMatch - aYearMatch;
-                }
-
-                // Затем по популярности
-                return (b.popularity || 0) - (a.popularity || 0);
-            });
-        }
-
-        async function autoFindPoster(btn) {
-            const title = document.getElementById('f_title').value.trim();
-            const year = document.getElementById('f_year').value.trim();
-            const type = document.getElementById('f_type').value;
-            const resultsBox = document.getElementById('posterSearchResults');
-
-            if (!title) {
-                alert('Сначала введите название фильма.');
+            if (list.length === 0) {
+                document.getElementById('listContainer').innerHTML = '<div class="empty-state">Ничего не найдено.</div>';
                 return;
             }
 
-            const originalText = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = '⏳ Ищу...';
-            resultsBox.innerHTML = '';
-
-            try {
-                const preferredType = type === 'series' ? 'tv' : 'movie';
-
-                let results = await tmdbSearchMulti(title, 'ru-RU');
-                if (results.length === 0) {
-                    // Фолбэк: у многих сериалов неполный русский перевод в TMDB
-                    results = await tmdbSearchMulti(title, 'en-US');
-                }
-
-                if (results.length === 0) {
-                    resultsBox.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Постеры не найдены. Попробуйте изменить название (например, оригинальное) или вставить ссылку вручную.</div>';
-                    return;
-                }
-
-                results = rankTmdbResults(results, preferredType, year);
-                renderPosterCandidates(results.slice(0, 6));
-            } catch (err) {
-                console.error(err);
-                alert('Ошибка при поиске постера: ' + err.message + '\nПодробности в консоли (F12).');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = originalText;
-            }
-        }
-
-        function renderPosterCandidates(results) {
-            const container = document.getElementById('posterSearchResults');
-            container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); margin: 10px 0 6px;">Выберите правильный постер:</div>' +
-                '<div style="display: flex; gap: 10px; flex-wrap: wrap;">' +
-                results.map(r => {
-                    const posterUrl = `https://image.tmdb.org/t/p/w300${r.poster_path}`;
-                    const name = (r.title || r.name || 'Без названия').replace(/'/g, "\\'");
-                    const dateStr = r.release_date || r.first_air_date || '';
-                    const yearStr = dateStr ? dateStr.slice(0, 4) : '?';
-                    const typeLabel = r.media_type === 'tv' ? 'Сериал' : 'Фильм';
-                    return `<div style="width: 100px; cursor: pointer; text-align: center;" onclick="selectPoster('${posterUrl}')">
-                        <img src="${posterUrl}" style="width: 100px; height: 150px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; transition: 0.2s;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='transparent'">
-                        <div style="font-size: 11px; margin-top: 5px; color: #ccc; line-height: 1.3;">${name} (${yearStr})</div>
-                        <div style="font-size: 10px; color: var(--text-muted);">${typeLabel}</div>
-                    </div>`;
-                }).join('') + '</div>';
-        }
-
-        function selectPoster(url) {
-            document.getElementById('f_poster').value = url;
-            document.getElementById('posterSearchResults').innerHTML = '<div style="color: #2ecc71; font-size: 13px; padding: 6px 0;">✅ Постер выбран</div>';
-        }
-
-        function cancel() {
-            editingItem = null;
-            document.getElementById('adminForm').reset();
-            
-            document.querySelectorAll('.cb-genre, .cb-list').forEach(cb => cb.checked = false);
-
-            document.getElementById('formTitle').innerText = 'Добавить новую запись';
-            document.getElementById('btnCancel').style.display = 'none';
-            document.getElementById('btnDelete').style.display = 'none';
-            document.getElementById('posterSearchResults').innerHTML = '';
-        }
-
-        async function deleteCurrentEditing() {
-            if (!editingItem) return;
-            const success = await del(editingItem.id);
-            if (success) cancel();
+            const html = list.map(i => {
+                const typeName = i.type === 'movies' ? 'Фильм' : i.type === 'series' ? 'Сериал' : 'Мультфильм';
+                const isTop = (i.toprank && i.toprank > 0) ? `🏆 Топ-${i.toprank}` : '';
+                const isRewatch = i.rewatch ? `🔄 Пересматриваем` : '';
+                const ratingStr = (i.rating !== null && i.rating !== undefined) ? `★ ${i.rating}` : '';
+                const metaParts = [typeName, i.year || '', ratingStr, isTop, isRewatch].filter(Boolean).join(' • ');
+                return `
+                <div class="item">
+                    <div class="item-info">
+                        <img src="${i.poster || ''}" alt="Постер">
+                        <div>
+                            <div class="item-title">${i.title}</div>
+                            <div class="item-meta">${metaParts} <br> Списки: ${i.customlists || '-'}</div>
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <a class="btn-edit" href="admin.html?edit=${encodeURIComponent(i.id)}">✏️ Редактировать</a>
+                        <button type="button" class="btn-del" onclick="del('${i.id}')">🗑️ Удалить</button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+            document.getElementById('listContainer').innerHTML = html;
         }
 
         async function del(id) {
-            if(!confirm('Точно удалить этот фильм?')) return false;
+            if (!confirm('Точно удалить этот фильм?')) return;
             try {
                 const { error } = await supabaseClient.from('collection').delete().eq('id', id);
                 if (error) throw error;
                 await load();
-                return true;
             } catch (error) {
                 console.error("Полная ошибка удаления:", error);
-                alert("ОШИБКА ОТ БАЗЫ ДАННЫХ:\n" + 
-                      "Сообщение: " + (error.message || error.toString() || "нет") + "\n" + 
-                      "Детали: " + (error.details || "нет") + "\n" + 
+                alert("ОШИБКА ОТ БАЗЫ ДАННЫХ:\n" +
+                      "Сообщение: " + (error.message || error.toString() || "нет") + "\n" +
+                      "Детали: " + (error.details || "нет") + "\n" +
                       "Код: " + (error.code || "нет"));
             }
         }
-        document.getElementById('btnCancel').onclick = cancel;
 
-        // --- ЛОГИКА ТОП-100 И DRAG & DROP ---
-        let sortableInstance = null;
+        // --- МАССОВЫЙ АВТОПОИСК ПОСТЕРОВ ЧЕРЕЗ TMDB ---
+        // tmdbSearchMulti() и rankTmdbResults() подключаются из общего tmdb-helper.js
 
-        function renderTop100() {
-            const topData = currentData
-                .filter(i => i.toprank && i.toprank > 0)
-                .sort((a, b) => a.toprank - b.toprank);
+        async function findCandidatesFor(movie) {
+            const preferredType = movie.type === 'series' ? 'tv' : 'movie';
 
-            const container = document.getElementById('top100DragContainer');
-            
-            if (topData.length === 0) {
-                container.innerHTML = '<div style="text-align:center; color: var(--muted); padding: 20px;">В ТОП-100 пока нет фильмов. Добавьте их во вкладке "База и Добавление".</div>';
+            let results = await tmdbSearchMulti(movie.title, 'ru-RU');
+            if (results.length === 0) {
+                results = await tmdbSearchMulti(movie.title, 'en-US');
+            }
+
+            results = rankTmdbResults(results, preferredType, movie.year);
+            return results.slice(0, 4);
+        }
+
+        async function scanMissingPosters() {
+            const scanBtn = document.getElementById('scanBtn');
+            const progressBox = document.getElementById('scanProgress');
+            const resultsBox = document.getElementById('scanResults');
+
+            const missing = currentData.filter(i => !i.poster || !i.poster.trim());
+
+            if (missing.length === 0) {
+                progressBox.textContent = '✅ У всех фильмов уже есть постер.';
+                resultsBox.innerHTML = '';
                 return;
             }
 
-            container.innerHTML = topData.map((item, index) => `
-                <div class="drag-item" data-id="${item.id}">
-                    <div class="drag-handle">☰</div>
-                    <div class="drag-rank">${index + 1}</div>
-                    <img src="${item.poster || ''}" alt="">
-                    <div class="drag-title">${item.title}</div>
-                </div>
-            `).join('');
+            scanBtn.disabled = true;
+            resultsBox.innerHTML = '';
 
-            if (sortableInstance) sortableInstance.destroy();
-            sortableInstance = new Sortable(container, {
-                animation: 150,
-                handle: '.drag-item',
-                ghostClass: 'sortable-ghost',
-                onEnd: function () {
-                    const items = document.querySelectorAll('#top100DragContainer .drag-item');
-                    items.forEach((item, i) => {
-                        item.querySelector('.drag-rank').innerText = i + 1;
-                    });
+            for (let idx = 0; idx < missing.length; idx++) {
+                const movie = missing[idx];
+                progressBox.textContent = `Ищу постеры... ${idx + 1} из ${missing.length}`;
+
+                const rowId = `scanrow_${movie.id}`;
+                resultsBox.insertAdjacentHTML('beforeend', `<div class="item" id="${rowId}" style="align-items:flex-start;"><div class="item-info"><div><div class="item-title">${escapeHtml(movie.title)}${movie.year ? ' (' + movie.year + ')' : ''}</div><div class="item-meta">⏳ Ищу варианты...</div></div></div></div>`);
+
+                try {
+                    const candidates = await findCandidatesFor(movie);
+                    const row = document.getElementById(rowId);
+
+                    if (candidates.length === 0) {
+                        row.querySelector('.item-meta').innerHTML = '❌ Ничего не найдено';
+                        continue;
+                    }
+
+                    const candidatesHtml = candidates.map(c => {
+                        const posterUrl = `https://image.tmdb.org/t/p/w300${c.poster_path}`;
+                        const name = c.title || c.name || 'Без названия';
+                        const dateStr = c.release_date || c.first_air_date || '';
+                        const yearStr = dateStr ? dateStr.slice(0, 4) : '?';
+                        const typeLabel = c.media_type === 'tv' ? 'Сериал' : 'Фильм';
+                        return `<div style="width: 90px; cursor: pointer; text-align: center;" onclick="applyFoundPoster('${movie.id}', '${posterUrl}', '${rowId}')">
+                            <img src="${posterUrl}" style="width: 90px; height: 135px; object-fit: cover; border-radius: 6px; border: 2px solid transparent;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='transparent'">
+                            <div style="font-size: 10px; margin-top: 4px; color: #ccc;">${escapeHtml(name)} (${yearStr})</div>
+                            <div style="font-size: 9px; color: var(--muted);">${typeLabel}</div>
+                        </div>`;
+                    }).join('');
+
+                    row.innerHTML = `
+                        <div class="item-info" style="align-items:flex-start;">
+                            <div>
+                                <div class="item-title">${escapeHtml(movie.title)}${movie.year ? ' (' + movie.year + ')' : ''}</div>
+                                <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">${candidatesHtml}</div>
+                            </div>
+                        </div>
+                        <div class="actions"><button type="button" class="btn-del" onclick="document.getElementById('${rowId}').remove()">Пропустить</button></div>
+                    `;
+                } catch (err) {
+                    console.error(err);
+                    const row = document.getElementById(rowId);
+                    if (row) row.querySelector('.item-meta').innerHTML = `⚠️ Ошибка: ${escapeHtml(err.message || 'неизвестная')}`;
                 }
-            });
+            }
+
+            progressBox.textContent = `Готово. Обработано ${missing.length} фильм(ов).`;
+            scanBtn.disabled = false;
         }
 
-        async function saveTop100Order() {
-            const btn = document.getElementById('btnSaveTop');
-            btn.innerText = '⏳ Сохранение...';
-            btn.disabled = true;
-
-            const items = document.querySelectorAll('#top100DragContainer .drag-item');
-            const updates = [];
-
-            items.forEach((item, index) => {
-                const id = item.getAttribute('data-id');
-                const newRank = index + 1;
-                updates.push(supabaseClient.from('collection').update({ toprank: newRank }).eq('id', id));
-            });
-
+        async function applyFoundPoster(movieId, posterUrl, rowId) {
             try {
-                await Promise.all(updates);
-                alert("Порядок успешно сохранен!");
-                await load();
+                const { error } = await supabaseClient.from('collection').update({ poster: posterUrl }).eq('id', movieId);
+                if (error) throw error;
+
+                const movie = currentData.find(m => String(m.id) === String(movieId));
+                if (movie) movie.poster = posterUrl;
+
+                const row = document.getElementById(rowId);
+                if (row) row.innerHTML = `<div class="item-info"><img src="${posterUrl}" alt="Постер"><div class="item-title" style="color:#2ecc71;">✅ Постер сохранён</div></div>`;
+
+                applyFilters();
             } catch (error) {
-                console.error("Полная ошибка:", error);
-                alert("ОШИБКА ОТ БАЗЫ ДАННЫХ:\n" + 
-                      "Сообщение: " + (error.message || error.toString() || "нет") + "\n" + 
-                      "Детали: " + (error.details || "нет") + "\n" + 
-                      "Код: " + (error.code || "нет"));
-            } finally {
-                btn.innerText = '💾 Сохранить новый порядок';
-                btn.disabled = false;
+                console.error(error);
+                alert('Не удалось сохранить постер. Подробности в консоли.');
             }
         }
 
-        // Первичный запуск
+        // escapeHtml() подключается из общего tmdb-helper.js
+
         load();
     </script>
 </body>
