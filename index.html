@@ -213,6 +213,33 @@
         let currentFilter = 'main'; 
         let currentSort = 'default';
 
+        // Обход блокировки постеров TMDB на мобильных сетях: у некоторых
+        // мобильных операторов домен image.tmdb.org блокируется сильнее,
+        // чем на Wi-Fi/десктопе, из-за чего постеры, добавленные через
+        // автопоиск TMDB, на телефоне не грузятся. Отдаём такие картинки
+        // через прокси wsrv.nl, который сам скачивает их с TMDB.
+        function posterSrc(url) {
+            if (!url) return '';
+            if (url.includes('image.tmdb.org')) {
+                return 'https://wsrv.nl/?url=' + encodeURIComponent(url.replace(/^https?:\/\//, ''));
+            }
+            return url;
+        }
+        function escapeAttr(str) {
+            return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+        }
+        function handlePosterError(imgEl) {
+            const original = imgEl.dataset.original || '';
+            if (!original) { imgEl.removeAttribute('onerror'); return; }
+            if (imgEl.dataset.posterStage === 'original') {
+                imgEl.removeAttribute('onerror');
+                imgEl.removeAttribute('src');
+                return;
+            }
+            imgEl.dataset.posterStage = 'original';
+            imgEl.src = original;
+        }
+
         const FILTER_TITLES = {
             main: '🏠 Главная',
             movies: '🎬 Фильмы',
@@ -341,7 +368,7 @@
             const typeName = item.type === 'movies' ? 'Фильм' : item.type === 'series' ? 'Сериал' : 'Мультфильм';
             return `
             <div class="card" onclick="openModal('${item.id}')">
-                <img src="${item.poster}" alt="Постер">
+                <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер">
                 <div class="card-info">
                     <div class="card-title">${item.title}</div>
                     <div class="card-meta">
@@ -360,7 +387,7 @@
             return `
             <div class="top100-row" onclick="openModal('${item.id}')">
                 <div class="top100-rank ${rankClass}">${rank}</div>
-                <img class="top100-poster" src="${item.poster}" alt="Постер">
+                <img class="top100-poster" src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер">
                 <div class="top100-info">
                     <div class="top100-title">${item.title}</div>
                     <div class="top100-meta">
@@ -386,7 +413,7 @@
             
             document.getElementById('modalBody').innerHTML = `
                 <div class="details-poster">
-                    <img src="${item.poster}" alt="Постер">
+                    <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер">
                 </div>
                 <div class="details-info">
                     <div class="details-title">${item.title}</div>
