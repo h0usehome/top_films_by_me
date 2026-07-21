@@ -197,15 +197,15 @@
 
     <!-- Библиотека Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Общие для всех страниц админки: ключи и функции поиска постеров -->
+    <script src="config.js"></script>
+    <script src="tmdb-helper.js"></script>
     <!-- Библиотека для плавного Drag and Drop (работает и на мобилках) -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
     <script>
-        const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0YWNidmN3c3lhanBlYWNkbXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NjM4NDgsImV4cCI6MjEwMDEzOTg0OH0.OhjANu7A7Wb7GUsBjVzrvjkGJlgVsehSf6EyC1DMxR8';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        const TMDB_API_KEY = '3a3430d210cbf6ae4ee54b1ffc523ddd';
+        // SUPABASE_URL, SUPABASE_KEY, supabaseClient и TMDB_API_KEY
+        // теперь подключаются из общего config.js (см. <head> выше)
 
         let currentData = [];
         let editingItem = null;
@@ -397,37 +397,7 @@
         }
 
         // --- АВТОПОИСК ПОСТЕРА ЧЕРЕЗ TMDB ---
-        async function tmdbSearchMulti(title, language) {
-            const url = `https://api.themoviedb.org/3/search/multi?api_key=${TMDB_API_KEY}&language=${language}&include_adult=false&query=${encodeURIComponent(title)}`;
-            const res = await fetch(url);
-            const data = await res.json();
-            if (!res.ok || data.success === false) {
-                throw new Error(data.status_message || ('TMDB request failed: ' + res.status));
-            }
-            console.log(`TMDB multi search "${title}" [${language}]:`, data.results);
-            return (data.results || []).filter(r => (r.media_type === 'movie' || r.media_type === 'tv') && r.poster_path);
-        }
-
-        function rankTmdbResults(results, preferredType, year) {
-            return [...results].sort((a, b) => {
-                // Сначала совпадение по нужному типу (фильм/сериал)
-                const aTypeMatch = a.media_type === preferredType ? 1 : 0;
-                const bTypeMatch = b.media_type === preferredType ? 1 : 0;
-                if (aTypeMatch !== bTypeMatch) return bTypeMatch - aTypeMatch;
-
-                // Затем совпадение по году, если он указан
-                if (year) {
-                    const aYear = (a.release_date || a.first_air_date || '').slice(0, 4);
-                    const bYear = (b.release_date || b.first_air_date || '').slice(0, 4);
-                    const aYearMatch = aYear === String(year) ? 1 : 0;
-                    const bYearMatch = bYear === String(year) ? 1 : 0;
-                    if (aYearMatch !== bYearMatch) return bYearMatch - aYearMatch;
-                }
-
-                // Затем по популярности
-                return (b.popularity || 0) - (a.popularity || 0);
-            });
-        }
+        // tmdbSearchMulti() и rankTmdbResults() подключаются из общего tmdb-helper.js
 
         async function autoFindPoster(btn) {
             const title = document.getElementById('f_title').value.trim();
