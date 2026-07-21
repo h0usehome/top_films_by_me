@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мои списки — Админ-панель</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23141414%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23e50914%22%20stroke-width%3D%224%22/%3E%0A%3Cg%20fill%3D%22%23e50914%22%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3C/g%3E%0A%3C/svg%3E">
+    <style>
+        :root {
+            --bg: #141414; --surface: #1f1f1f; --surface2: #262626;
+            --primary: #e50914; --text: #ffffff; --muted: #808080;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: var(--bg); color: var(--text); padding: 40px 20px; }
+        .container { max-width: 1300px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 20px; font-weight: 800; letter-spacing: 1px; }
+
+        .admin-nav { display: flex; gap: 15px; margin-bottom: 30px; justify-content: center; flex-wrap: wrap; }
+        .nav-tab { padding: 12px 25px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 16px; transition: 0.3s; border: 1px solid transparent; text-decoration: none; color: inherit; display: inline-block; }
+        .nav-tab.active { background: rgba(229, 9, 20, 0.1); border-color: var(--primary); color: var(--text); }
+        .nav-tab:hover:not(.active) { background: rgba(255,255,255,0.1); }
+
+        .layout { display: flex; gap: 30px; align-items: flex-start; }
+        .panel { background: var(--surface); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+        /* Левая колонка — список списков */
+        .lists-panel { width: 300px; flex-shrink: 0; }
+        .lists-panel h2 { font-size: 17px; margin-bottom: 15px; }
+        .add-list-row { display: flex; gap: 8px; margin-bottom: 20px; }
+        .add-list-row input {
+            flex: 1; padding: 10px 12px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; color: #fff; font-size: 14px; outline: none;
+        }
+        .add-list-row input:focus { border-color: var(--primary); }
+        .add-list-row button {
+            padding: 10px 16px; background: var(--primary); border: none; border-radius: 8px; color: #fff;
+            font-weight: 700; cursor: pointer; font-size: 16px;
+        }
+        .add-list-row button:hover { background: #ff1a25; }
+
+        .list-nav-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 14px; border-radius: 8px; cursor: pointer; margin-bottom: 6px;
+            color: var(--muted); font-weight: 600; transition: 0.2s;
+        }
+        .list-nav-item .count { font-size: 12px; font-weight: 400; background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 10px; }
+        .list-nav-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .list-nav-item.active { background: rgba(229, 9, 20, 0.12); color: #fff; border: 1px solid rgba(229, 9, 20, 0.4); }
+        .lists-empty { color: var(--muted); font-size: 14px; padding: 10px 0; }
+
+        /* Правая колонка — содержимое выбранного списка */
+        .content-panel { flex: 1; min-width: 0; }
+        .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .list-header h2 { font-size: 24px; font-weight: 800; }
+        .list-header-actions { display: flex; gap: 10px; }
+        .list-header-actions button {
+            padding: 8px 14px; font-size: 13px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600;
+        }
+        .btn-rename { background: #2b2b2b; color: #fff; }
+        .btn-rename:hover { background: #404040; }
+        .btn-delete-list { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+        .btn-delete-list:hover { background: var(--primary); color: #fff; }
+
+        .rename-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        .rename-row input {
+            flex: 1; padding: 10px 12px; background: rgba(0,0,0,0.4); border: 1px solid var(--primary);
+            border-radius: 8px; color: #fff; font-size: 16px; font-weight: 700; outline: none;
+        }
+        .rename-row button { padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; }
+        .btn-save-rename { background: var(--primary); color: #fff; }
+        .btn-cancel-rename { background: #2b2b2b; color: #fff; }
+
+        h3.section-title { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 25px 0 12px; }
+        h3.section-title:first-of-type { margin-top: 0; }
+
+        .item { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 10px 14px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; gap: 10px; }
+        .item-info { display: flex; gap: 14px; align-items: center; min-width: 0; }
+        .item-info img { width: 42px; height: 60px; object-fit: cover; border-radius: 4px; background: #000; flex-shrink: 0; }
+        .item-title { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+        .item-meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+        .actions button {
+            padding: 7px 12px; font-size: 13px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600;
+        }
+        .btn-add { background: rgba(46, 204, 113, 0.15); border: 1px solid #2ecc71; color: #2ecc71; }
+        .btn-add:hover { background: #2ecc71; color: #fff; }
+        .btn-remove { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+        .btn-remove:hover { background: var(--primary); color: #fff; }
+
+        #searchAddInput {
+            width: 100%; padding: 12px 14px; margin-bottom: 15px; background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 14px; outline: none;
+        }
+        #searchAddInput:focus { border-color: var(--primary); }
+
+        .empty-state { text-align: center; color: var(--muted); padding: 30px 0; }
+        .placeholder-state { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 16px; }
+
+        @media (max-width: 900px) {
+            .layout { flex-direction: column; }
+            .lists-panel { width: 100%; }
+            .item-title { max-width: 160px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗂️ Мои списки</h1>
+
+        <div class="admin-nav">
+            <a class="nav-tab" href="admin.html">➕ Добавление / Редактирование</a>
+            <a class="nav-tab" href="database.html">📋 Общая база</a>
+            <a class="nav-tab active" href="lists.html">🗂️ Мои списки</a>
+        </div>
+
+        <div class="layout">
+            <!-- Левая колонка: все списки -->
+            <div class="panel lists-panel">
+                <h2>Списки</h2>
+                <div class="add-list-row">
+                    <input type="text" id="newListInput" placeholder="Название нового списка">
+                    <button type="button" onclick="createList()">+</button>
+                </div>
+                <div id="listsNav"><div class="lists-empty">Загрузка...</div></div>
+            </div>
+
+            <!-- Правая колонка: содержимое выбранного списка -->
+            <div class="panel content-panel" id="contentPanel">
+                <div class="placeholder-state">⬅ Выберите список слева или создайте новый</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0YWNidmN3c3lhanBlYWNkbXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NjM4NDgsImV4cCI6MjEwMDEzOTg0OH0.OhjANu7A7Wb7GUsBjVzrvjkGJlgVsehSf6EyC1DMxR8';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let allMovies = [];      // все фильмы из collection
+        let allLists = [];       // объединённые названия списков (из таблицы lists + из полей customlists)
+        let selectedList = null; // текущий выбранный список
+
+        async function init() {
+            await loadData();
+        }
+
+        async function loadData() {
+            try {
+                const [moviesRes, listsRes] = await Promise.all([
+                    supabaseClient.from('collection').select('*'),
+                    supabaseClient.from('lists').select('*').order('name', { ascending: true })
+                ]);
+
+                if (moviesRes.error) throw moviesRes.error;
+                if (listsRes.error) throw listsRes.error;
+
+                allMovies = moviesRes.data || [];
+
+                // Объединяем списки из таблицы lists с теми, что встречаются только в customlists фильмов
+                // (например, созданные ранее старым способом прямо из формы добавления)
+                const namesFromTable = (listsRes.data || []).map(l => l.name);
+                const namesFromMovies = new Set();
+                allMovies.forEach(m => {
+                    if (m.customlists) {
+                        m.customlists.split(',').map(s => s.trim()).filter(Boolean).forEach(n => namesFromMovies.add(n));
+                    }
+                });
+
+                const combined = new Set(namesFromTable);
+                namesFromMovies.forEach(n => combined.add(n));
+                allLists = Array.from(combined).sort((a, b) => a.localeCompare(b, 'ru'));
+
+                renderListsNav();
+
+                if (selectedList && allLists.includes(selectedList)) {
+                    renderContentPanel();
+                } else {
+                    selectedList = null;
+                    document.getElementById('contentPanel').innerHTML = '<div class="placeholder-state">⬅ Выберите список слева или создайте новый</div>';
+                }
+            } catch (error) {
+                console.error(error);
+                document.getElementById('listsNav').innerHTML = '<div class="lists-empty" style="color:var(--primary);">Ошибка подключения к БД.</div>';
+            }
+        }
+
+        function moviesInList(name) {
+            return allMovies.filter(m => {
+                if (!m.customlists) return false;
+                return m.customlists.split(',').map(s => s.trim()).includes(name);
+            });
+        }
+
+        function renderListsNav() {
+            const container = document.getElementById('listsNav');
+            if (allLists.length === 0) {
+                container.innerHTML = '<div class="lists-empty">Пока нет ни одного списка. Создайте первый выше.</div>';
+                return;
+            }
+            container.innerHTML = allLists.map(name => {
+                const count = moviesInList(name).length;
+                const activeClass = name === selectedList ? 'active' : '';
+                return `
+                <div class="list-nav-item ${activeClass}" onclick="selectList('${escapeAttr(name)}')">
+                    <span>📌 ${escapeHtml(name)}</span>
+                    <span class="count">${count}</span>
+                </div>`;
+            }).join('');
+        }
+
+        function selectList(name) {
+            selectedList = name;
+            renderListsNav();
+            renderContentPanel();
+        }
+
+        function renderContentPanel() {
+            const panel = document.getElementById('contentPanel');
+            const inList = moviesInList(selectedList);
+
+            panel.innerHTML = `
+                <div class="list-header" id="listHeaderNormal">
+                    <h2>📌 ${escapeHtml(selectedList)}</h2>
+                    <div class="list-header-actions">
+                        <button class="btn-rename" onclick="startRename()">✏️ Переименовать</button>
+                        <button class="btn-delete-list" onclick="deleteList()">🗑️ Удалить список</button>
+                    </div>
+                </div>
+                <div id="renameRowContainer"></div>
+
+                <h3 class="section-title">Фильмы в списке (${inList.length})</h3>
+                <div id="moviesInListContainer"></div>
+
+                <h3 class="section-title">Добавить фильм из общей базы</h3>
+                <input type="text" id="searchAddInput" placeholder="🔍 Поиск по названию..." oninput="renderAddCandidates()">
+                <div id="addCandidatesContainer"></div>
+            `;
+
+            renderMoviesInList();
+            renderAddCandidates();
+        }
+
+        function renderMoviesInList() {
+            const container = document.getElementById('moviesInListContainer');
+            const inList = moviesInList(selectedList);
+
+            if (inList.length === 0) {
+                container.innerHTML = '<div class="empty-state">В этом списке пока нет фильмов.</div>';
+                return;
+            }
+
+            container.innerHTML = inList.map(m => movieRowHtml(m, false)).join('');
+        }
+
+        function renderAddCandidates() {
+            const container = document.getElementById('addCandidatesContainer');
+            const search = (document.getElementById('searchAddInput')?.value || '').trim().toLowerCase();
+
+            let candidates = allMovies.filter(m => {
+                const lists = (m.customlists || '').split(',').map(s => s.trim());
+                return !lists.includes(selectedList);
+            });
+
+            if (search) {
+                candidates = candidates.filter(m => (m.title || '').toLowerCase().includes(search));
+            }
+
+            candidates.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ru'));
+
+            if (candidates.length === 0) {
+                container.innerHTML = '<div class="empty-state">Все фильмы уже в списке, либо ничего не найдено.</div>';
+                return;
+            }
+
+            // Показываем первые 50, чтобы не перегружать страницу при большой базе
+            container.innerHTML = candidates.slice(0, 50).map(m => movieRowHtml(m, true)).join('');
+        }
+
+        function movieRowHtml(m, isCandidate) {
+            const typeName = m.type === 'movies' ? 'Фильм' : m.type === 'series' ? 'Сериал' : 'Мультфильм';
+            const ratingStr = (m.rating !== null && m.rating !== undefined) ? `★ ${m.rating}` : '';
+            const meta = [typeName, m.year || '', ratingStr].filter(Boolean).join(' • ');
+            const actionBtn = isCandidate
+                ? `<button class="btn-add" onclick="addMovieToList('${m.id}')">+ Добавить</button>`
+                : `<button class="btn-remove" onclick="removeMovieFromList('${m.id}')">✕ Убрать</button>`;
+
+            return `
+            <div class="item">
+                <div class="item-info">
+                    <img src="${m.poster || ''}" alt="Постер">
+                    <div>
+                        <div class="item-title">${escapeHtml(m.title || '')}</div>
+                        <div class="item-meta">${meta}</div>
+                    </div>
+                </div>
+                <div class="actions">${actionBtn}</div>
+            </div>`;
+        }
+
+        // --- СОЗДАНИЕ СПИСКА ---
+        async function createList() {
+            const input = document.getElementById('newListInput');
+            const name = input.value.trim();
+            if (!name) return;
+
+            if (allLists.some(l => l.toLowerCase() === name.toLowerCase())) {
+                alert('Список с таким названием уже существует.');
+                return;
+            }
+
+            try {
+                const { error } = await supabaseClient.from('lists').insert([{ name }]);
+                if (error) throw error;
+                input.value = '';
+                selectedList = name;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось создать список. Подробности в консоли.');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            document.getElementById('newListInput').addEventListener('keypress', e => {
+                if (e.key === 'Enter') { e.preventDefault(); createList(); }
+            });
+        });
+
+        // --- ПЕРЕИМЕНОВАНИЕ СПИСКА ---
+        function startRename() {
+            const container = document.getElementById('renameRowContainer');
+            container.innerHTML = `
+                <div class="rename-row">
+                    <input type="text" id="renameInput" value="${escapeAttr(selectedList)}">
+                    <button class="btn-save-rename" onclick="saveRename()">💾 Сохранить</button>
+                    <button class="btn-cancel-rename" onclick="renderContentPanel()">Отмена</button>
+                </div>
+            `;
+            document.getElementById('renameInput').focus();
+        }
+
+        async function saveRename() {
+            const newName = document.getElementById('renameInput').value.trim();
+            if (!newName) return;
+            if (newName !== selectedList && allLists.some(l => l.toLowerCase() === newName.toLowerCase())) {
+                alert('Список с таким названием уже существует.');
+                return;
+            }
+            if (newName === selectedList) { renderContentPanel(); return; }
+
+            try {
+                // Обновляем (или создаём) запись в таблице lists
+                const { data: existingRow } = await supabaseClient.from('lists').select('*').eq('name', selectedList).maybeSingle();
+                if (existingRow) {
+                    const { error } = await supabaseClient.from('lists').update({ name: newName }).eq('id', existingRow.id);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabaseClient.from('lists').insert([{ name: newName }]);
+                    if (error) throw error;
+                }
+
+                // Обновляем customlists у всех фильмов, где встречается старое название
+                const affected = moviesInList(selectedList);
+                for (const m of affected) {
+                    const updatedLists = m.customlists.split(',').map(s => s.trim())
+                        .map(n => n === selectedList ? newName : n)
+                        .join(', ');
+                    const { error } = await supabaseClient.from('collection').update({ customlists: updatedLists }).eq('id', m.id);
+                    if (error) throw error;
+                }
+
+                selectedList = newName;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось переименовать список. Подробности в консоли.');
+            }
+        }
+
+        // --- УДАЛЕНИЕ СПИСКА ---
+        async function deleteList() {
+            const count = moviesInList(selectedList).length;
+            const msg = count > 0
+                ? `Удалить список «${selectedList}»? Он будет убран у ${count} фильм(ов), сами фильмы удалены не будут.`
+                : `Удалить список «${selectedList}»?`;
+            if (!confirm(msg)) return;
+
+            try {
+                // Убираем список из всех фильмов
+                const affected = moviesInList(selectedList);
+                for (const m of affected) {
+                    const updatedLists = m.customlists.split(',').map(s => s.trim())
+                        .filter(n => n !== selectedList)
+                        .join(', ');
+                    const { error } = await supabaseClient.from('collection').update({ customlists: updatedLists }).eq('id', m.id);
+                    if (error) throw error;
+                }
+
+                // Удаляем саму запись списка (если она есть в таблице lists)
+                const { error: delError } = await supabaseClient.from('lists').delete().eq('name', selectedList);
+                if (delError) throw delError;
+
+                selectedList = null;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось удалить список. Подробности в консоли.');
+            }
+        }
+
+        // --- ДОБАВЛЕНИЕ / УДАЛЕНИЕ ФИЛЬМА ИЗ СПИСКА ---
+        async function addMovieToList(movieId) {
+            const movie = allMovies.find(m => String(m.id) === String(movieId));
+            if (!movie) return;
+
+            const lists = (movie.customlists || '').split(',').map(s => s.trim()).filter(Boolean);
+            if (!lists.includes(selectedList)) lists.push(selectedList);
+
+            try {
+                const { error } = await supabaseClient.from('collection').update({ customlists: lists.join(', ') }).eq('id', movie.id);
+                if (error) throw error;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось добавить фильм в список. Подробности в консоли.');
+            }
+        }
+
+        async function removeMovieFromList(movieId) {
+            const movie = allMovies.find(m => String(m.id) === String(movieId));
+            if (!movie) return;
+
+            const lists = (movie.customlists || '').split(',').map(s => s.trim()).filter(n => n && n !== selectedList);
+
+            try {
+                const { error } = await supabaseClient.from('collection').update({ customlists: lists.join(', ') }).eq('id', movie.id);
+                if (error) throw error;
+                await loadData();
+            } catch (error) {
+                console.error(error);
+                alert('Не удалось убрать фильм из списка. Подробности в консоли.');
+            }
+        }
+
+        // --- ВСПОМОГАТЕЛЬНОЕ ---
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+        function escapeAttr(str) {
+            return String(str).replace(/'/g, "\\'");
+        }
+    </script>
+</body>
+</html>
