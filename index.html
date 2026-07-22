@@ -302,6 +302,8 @@
 
     <!-- Библиотека Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Подключаем наши общие функции -->
+    <script src="poster-helpers.js"></script>
     
     <script>
         const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
@@ -340,33 +342,6 @@
         function setGenreFilter(genre) {
             currentGenre = genre;
             render();
-        }
-
-        // Обход блокировки постеров TMDB на мобильных сетях: у некоторых
-        // мобильных операторов домен image.tmdb.org блокируется сильнее,
-        // чем на Wi-Fi/десктопе. Грузим постер напрямую (быстрый путь для
-        // большинства), а прокси wsrv.nl подключаем только как fallback,
-        // если прямая ссылка не загрузилась.
-        function posterSrc(url) {
-            return url || '';
-        }
-        function escapeAttr(str) {
-            return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-        }
-        function handlePosterError(imgEl) {
-            const original = imgEl.dataset.original || '';
-            if (!original) { imgEl.removeAttribute('onerror'); return; }
-            if (imgEl.dataset.posterStage === 'proxy') {
-                imgEl.removeAttribute('onerror');
-                imgEl.removeAttribute('src');
-                return;
-            }
-            imgEl.dataset.posterStage = 'proxy';
-            if (original.includes('image.tmdb.org')) {
-                imgEl.src = 'https://wsrv.nl/?url=' + encodeURIComponent(original.replace(/^https?:\/\//, ''));
-            } else {
-                imgEl.removeAttribute('onerror');
-            }
         }
 
         const FILTER_TITLES = {
