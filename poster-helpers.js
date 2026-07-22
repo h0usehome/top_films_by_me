@@ -10,6 +10,12 @@ function escapeAttr(str) {
     return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+}
+
 function handlePosterError(imgEl) {
     const original = imgEl.dataset.original || '';
     if (!original) { 
