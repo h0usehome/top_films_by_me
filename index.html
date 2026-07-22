@@ -139,17 +139,23 @@
             display: flex; 
             gap: 20px; 
             overflow-x: auto; 
-            /* Добавляем пространство для тени и увеличения карточки по всем сторонам */
-            padding-top: 20px; 
-            padding-bottom: 30px; /* Снизу отступ больше, чтобы тень не перекрывалась скроллбаром */
-            padding-left: 15px; 
-            padding-right: 15px;
-            /* Компенсируем боковые отступы, чтобы карточки стояли вровень с заголовками секций */
-            margin-left: -15px; 
-            margin-right: -15px;
+            
+            /* Даем много места: карточка растет вверх/вниз + отбрасывает большую тень */
+            padding-top: 30px; 
+            /* Снизу отступ максимальный, так как в твоем коде тень смещена вниз (0 10px 25px) */
+            padding-bottom: 45px; 
+            padding-left: 25px; 
+            padding-right: 25px;
+            
+            /* Стягиваем пространство обратно, чтобы ряды и заголовки не разъехались */
+            margin-top: -15px; /* Придвигаем ряд чуть ближе к заголовку подборки */
+            margin-bottom: -15px; /* Убираем лишнюю пустоту снизу */
+            margin-left: -25px; 
+            margin-right: -25px;
+            
             scrollbar-width: thin; 
             scrollbar-color: rgba(255,255,255,0.15) transparent; 
-            }        
+        }
         .home-row .card { flex: 0 0 180px; }
         .home-row::-webkit-scrollbar { height: 6px; }
         .home-row::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
