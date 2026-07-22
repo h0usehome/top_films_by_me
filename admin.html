@@ -114,6 +114,12 @@
                         <button type="button" onclick="autoFindPoster(this)" style="flex: 0 0 auto; white-space: nowrap; background: #2b2b2b; color: #fff; border: none; border-radius: 8px; padding: 0 16px; cursor: pointer; font-weight: 600;">🔍 Найти постер</button>
                     </div>
                     <div id="posterSearchResults"></div>
+
+                    <div class="row" style="align-items: stretch;">
+                        <input type="url" id="f_trailer" placeholder="Ссылка на трейлер (YouTube)" autocomplete="off" style="flex: 1;">
+                        <button type="button" onclick="autoFindTrailer(this)" style="flex: 0 0 auto; white-space: nowrap; background: #2b2b2b; color: #fff; border: none; border-radius: 8px; padding: 0 16px; cursor: pointer; font-weight: 600;">🔍 Найти трейлер</button>
+                    </div>
+                    <div id="trailerSearchStatus"></div>
                     
                     <div class="row">
                         <input type="number" id="f_year" placeholder="Год выпуска" required>
@@ -351,6 +357,7 @@
                 type: document.getElementById('f_type').value,
                 title: document.getElementById('f_title').value,
                 poster: document.getElementById('f_poster').value,
+                trailer: document.getElementById('f_trailer').value,
                 year: parseInt(document.getElementById('f_year').value) || null,
                 rating: (() => { const v = document.getElementById('f_rating').value; return v === '' ? null : parseInt(v); })(),
                 genres: selectedGenres,
@@ -402,6 +409,7 @@
             document.getElementById('f_type').value = editingItem.type || 'movies';
             document.getElementById('f_title').value = editingItem.title || '';
             document.getElementById('f_poster').value = editingItem.poster || '';
+            document.getElementById('f_trailer').value = editingItem.trailer || '';
             document.getElementById('f_year').value = editingItem.year || '';
             document.getElementById('f_rating').value = (editingItem.rating !== null && editingItem.rating !== undefined) ? editingItem.rating : '';
             document.getElementById('f_desc').value = editingItem.description || '';
@@ -487,7 +495,7 @@
                     const dateStr = r.release_date || r.first_air_date || '';
                     const yearStr = dateStr ? dateStr.slice(0, 4) : '?';
                     const typeLabel = r.media_type === 'tv' ? 'Сериал' : 'Фильм';
-                    return `<div style="width: 100px; cursor: pointer; text-align: center;" onclick="selectPoster('${posterUrl}')">
+                    return `<div style="width: 100px; cursor: pointer; text-align: center;" onclick="selectPoster('${posterUrl}', ${r.id}, '${r.media_type}')">
                         <img src="${posterUrl}" style="width: 100px; height: 150px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; transition: 0.2s;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='transparent'">
                         <div style="font-size: 11px; margin-top: 5px; color: #ccc; line-height: 1.3;">${name} (${yearStr})</div>
                         <div style="font-size: 10px; color: var(--text-muted);">${typeLabel}</div>
@@ -495,9 +503,87 @@
                 }).join('') + '</div>';
         }
 
-        function selectPoster(url) {
+        function selectPoster(url, tmdbId, mediaType) {
             document.getElementById('f_poster').value = url;
             document.getElementById('posterSearchResults').innerHTML = '<div style="color: #2ecc71; font-size: 13px; padding: 6px 0;">✅ Постер выбран</div>';
+
+            // Заодно пробуем подтянуть трейлер того же фильма, если поле ещё пустое
+            const trailerField = document.getElementById('f_trailer');
+            const statusBox = document.getElementById('trailerSearchStatus');
+            if (tmdbId && mediaType && trailerField && !trailerField.value.trim()) {
+                if (statusBox) statusBox.innerHTML = '<div style="color: var(--text-muted); font-size: 12px; padding: 4px 0;">⏳ Заодно ищу трейлер...</div>';
+                findTrailerForTmdbItem(tmdbId, mediaType)
+                    .then(trailer => {
+                        if (trailer) {
+                            trailerField.value = 'https://www.youtube.com/watch?v=' + trailer.key;
+                            if (statusBox) statusBox.innerHTML = '<div style="color: #2ecc71; font-size: 12px; padding: 4px 0;">✅ Трейлер подтянут автоматически</div>';
+                        } else if (statusBox) {
+                            statusBox.innerHTML = '';
+                        }
+                    })
+                    .catch(() => { if (statusBox) statusBox.innerHTML = ''; });
+            }
+        }
+
+        // Ищет трейлер на YouTube для конкретного id/типа TMDB (сначала на русском, потом на английском)
+        async function findTrailerForTmdbItem(tmdbId, mediaType) {
+            let videos = await tmdbFetchVideos(tmdbId, mediaType, 'ru-RU');
+            let trailer = pickBestTrailer(videos);
+            if (!trailer) {
+                videos = await tmdbFetchVideos(tmdbId, mediaType, 'en-US');
+                trailer = pickBestTrailer(videos);
+            }
+            return trailer;
+        }
+
+        // Отдельный поиск трейлера по названию (для кнопки "🔍 Найти трейлер")
+        async function autoFindTrailer(btn) {
+            const title = document.getElementById('f_title').value.trim();
+            const type = document.getElementById('f_type').value;
+            const year = document.getElementById('f_year').value.trim();
+            const statusBox = document.getElementById('trailerSearchStatus');
+
+            if (!title) {
+                alert('Сначала введите название фильма.');
+                return;
+            }
+
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ Ищу...';
+            if (statusBox) statusBox.innerHTML = '';
+
+            try {
+                const preferredType = type === 'series' ? 'tv' : 'movie';
+
+                let results = await tmdbSearchMulti(title, 'ru-RU');
+                if (results.length === 0) {
+                    results = await tmdbSearchMulti(title, 'en-US');
+                }
+                if (results.length === 0) {
+                    if (statusBox) statusBox.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Фильм не найден на TMDB. Вставьте ссылку на трейлер вручную.</div>';
+                    return;
+                }
+
+                results = rankTmdbResults(results, preferredType, year);
+                const best = results[0];
+                const mediaType = best.media_type === 'tv' ? 'tv' : 'movie';
+
+                const trailer = await findTrailerForTmdbItem(best.id, mediaType);
+                if (!trailer) {
+                    if (statusBox) statusBox.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">Трейлер на YouTube не найден. Вставьте ссылку вручную.</div>';
+                    return;
+                }
+
+                document.getElementById('f_trailer').value = 'https://www.youtube.com/watch?v=' + trailer.key;
+                if (statusBox) statusBox.innerHTML = '<div style="color: #2ecc71; font-size: 13px; padding: 6px 0;">✅ Трейлер найден</div>';
+            } catch (err) {
+                console.error(err);
+                alert('Ошибка при поиске трейлера: ' + err.message + '\nПодробности в консоли (F12).');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
         }
 
         function cancel() {
