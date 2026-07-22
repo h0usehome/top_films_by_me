@@ -362,12 +362,22 @@
             };
 
             try {
+                const wasEditing = !!editingItem;
                 if (editingItem) {
                     const { error } = await supabaseClient.from('collection').update(payload).eq('id', editingItem.id);
                     if (error) throw error;
                 } else {
                     const { error } = await supabaseClient.from('collection').insert([payload]);
                     if (error) throw error;
+                }
+
+                // Если редактировали запись, на которую пришли по ссылке "Изменить"
+                // со страницы базы (URL содержит ?edit=...) — возвращаемся в базу.
+                // Иначе (обычное добавление/редактирование прямо в админке) остаёмся здесь.
+                const cameFromDatabase = new URLSearchParams(window.location.search).has('edit');
+                if (wasEditing && cameFromDatabase) {
+                    window.location.href = 'database.html';
+                    return;
                 }
 
                 cancel(); 
