@@ -82,9 +82,9 @@
         </div>
 
         <div class="panel" id="autoFillPanel">
-            <h2>🪄 Автопоиск постеров</h2>
-            <p style="color: var(--muted); font-size: 14px; margin: 10px 0 15px;">Найдёт постеры для фильмов, у которых поле «Ссылка на постер» пустое, и предложит выбрать подходящий вариант для каждого.</p>
-            <button type="button" id="scanBtn" onclick="scanMissingPosters()" style="background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-weight: 700; cursor: pointer; font-size: 14px;">🔍 Найти постеры для фильмов без постера</button>
+            <h2>🪄 Автопоиск трейлеров</h2>
+            <p style="color: var(--muted); font-size: 14px; margin: 10px 0 15px;">Найдёт YouTube-трейлеры для фильмов, у которых поле «Ссылка на трейлер» пустое, и автоматически сохранит их в базу.</p>
+            <button type="button" id="scanBtn" onclick="scanMissingTrailers()" style="background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-weight: 700; cursor: pointer; font-size: 14px;">🔍 Найти трейлеры для фильмов без трейлера</button>
             <div id="scanProgress" style="color: var(--muted); font-size: 13px; margin-top: 12px;"></div>
             <div id="scanResults" style="margin-top: 15px;"></div>
         </div>
@@ -216,30 +216,48 @@
             }
         }
 
-        // --- МАССОВЫЙ АВТОПОИСК ПОСТЕРОВ ЧЕРЕЗ TMDB ---
-        // tmdbSearchMulti() и rankTmdbResults() подключаются из общего tmdb-helper.js
+       // --- МАССОВЫЙ АВТОПОИСК ТРЕЙЛЕРОВ ЧЕРЕЗ TMDB ---
+        // Используем функции из tmdb-helper.js
 
-        async function findCandidatesFor(movie) {
+        async function findTrailerForMovie(movie) {
             const preferredType = movie.type === 'series' ? 'tv' : 'movie';
 
+            // 1. Ищем сам фильм/сериал на TMDB (сначала на русском, затем фолбэк на английский)
             let results = await tmdbSearchMulti(movie.title, 'ru-RU');
             if (results.length === 0) {
                 results = await tmdbSearchMulti(movie.title, 'en-US');
             }
+            if (results.length === 0) return null;
 
+            // 2. Берем самый релевантный результат
             results = rankTmdbResults(results, preferredType, movie.year);
-            return results.slice(0, 4);
+            const best = results[0];
+            const mediaType = best.media_type === 'tv' ? 'tv' : 'movie';
+
+            // 3. Ищем трейлер для найденного ID
+            let videos = await tmdbFetchVideos(best.id, mediaType, 'ru-RU');
+            let trailer = await pickBestAvailableTrailer(videos);
+            if (!trailer) {
+                videos = await tmdbFetchVideos(best.id, mediaType, 'en-US');
+                trailer = await pickBestAvailableTrailer(videos);
+            }
+
+            if (trailer) {
+                return 'https://www.youtube.com/watch?v=' + trailer.key;
+            }
+            return null;
         }
 
-        async function scanMissingPosters() {
+        async function scanMissingTrailers() {
             const scanBtn = document.getElementById('scanBtn');
             const progressBox = document.getElementById('scanProgress');
             const resultsBox = document.getElementById('scanResults');
 
-            const missing = currentData.filter(i => !i.poster || !i.poster.trim());
+            // Фильтруем коллекцию: берем только те, где нет ссылки на трейлер
+            const missing = currentData.filter(i => !i.trailer || !i.trailer.trim());
 
             if (missing.length === 0) {
-                progressBox.textContent = '✅ У всех фильмов уже есть постер.';
+                progressBox.textContent = '✅ У всех фильмов в базе уже есть трейлер.';
                 resultsBox.innerHTML = '';
                 return;
             }
@@ -247,43 +265,50 @@
             scanBtn.disabled = true;
             resultsBox.innerHTML = '';
 
+            let successCount = 0;
+
             for (let idx = 0; idx < missing.length; idx++) {
                 const movie = missing[idx];
-                progressBox.textContent = `Ищу постеры... ${idx + 1} из ${missing.length}`;
+                progressBox.textContent = `Ищу трейлеры... ${idx + 1} из ${missing.length}`;
 
                 const rowId = `scanrow_${movie.id}`;
-                resultsBox.insertAdjacentHTML('beforeend', `<div class="item" id="${rowId}" style="align-items:flex-start;"><div class="item-info"><div><div class="item-title">${escapeHtml(movie.title)}${movie.year ? ' (' + movie.year + ')' : ''}</div><div class="item-meta">⏳ Ищу варианты...</div></div></div></div>`);
+                resultsBox.insertAdjacentHTML('beforeend', `
+                    <div class="item" id="${rowId}" style="align-items:flex-start;">
+                        <div class="item-info">
+                            <div>
+                                <div class="item-title">${escapeHtml(movie.title)}${movie.year ? ' (' + movie.year + ')' : ''}</div>
+                                <div class="item-meta">⏳ Поиск трейлера на YouTube...</div>
+                            </div>
+                        </div>
+                    </div>
+                `);
 
                 try {
-                    const candidates = await findCandidatesFor(movie);
+                    const trailerUrl = await findTrailerForMovie(movie);
                     const row = document.getElementById(rowId);
 
-                    if (candidates.length === 0) {
-                        row.querySelector('.item-meta').innerHTML = '❌ Ничего не найдено';
+                    if (!trailerUrl) {
+                        row.querySelector('.item-meta').innerHTML = '❌ Трейлер не найден';
                         continue;
                     }
 
-                    const candidatesHtml = candidates.map(c => {
-                        const posterUrl = `https://image.tmdb.org/t/p/w300${c.poster_path}`;
-                        const name = c.title || c.name || 'Без названия';
-                        const dateStr = c.release_date || c.first_air_date || '';
-                        const yearStr = dateStr ? dateStr.slice(0, 4) : '?';
-                        const typeLabel = c.media_type === 'tv' ? 'Сериал' : 'Фильм';
-                        return `<div style="width: 90px; cursor: pointer; text-align: center;" onclick="applyFoundPoster('${movie.id}', '${posterUrl}', '${rowId}')">
-                            <img src="${posterSrc(posterUrl)}" data-original="${escapeHtml(posterUrl)}" onerror="handlePosterError(this)" style="width: 90px; height: 135px; object-fit: cover; border-radius: 6px; border: 2px solid transparent;" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='transparent'">
-                            <div style="font-size: 10px; margin-top: 4px; color: #ccc;">${escapeHtml(name)} (${yearStr})</div>
-                            <div style="font-size: 9px; color: var(--muted);">${typeLabel}</div>
-                        </div>`;
-                    }).join('');
+                    // Сохраняем найденный трейлер в Supabase
+                    const { error } = await supabaseClient.from('collection').update({ trailer: trailerUrl }).eq('id', movie.id);
+                    if (error) throw error;
+
+                    // Обновляем локальные данные в памяти
+                    movie.trailer = trailerUrl;
+                    successCount++;
 
                     row.innerHTML = `
                         <div class="item-info" style="align-items:flex-start;">
                             <div>
                                 <div class="item-title">${escapeHtml(movie.title)}${movie.year ? ' (' + movie.year + ')' : ''}</div>
-                                <div style="display:flex; gap:10px; margin-top:8px; flex-wrap:wrap;">${candidatesHtml}</div>
+                                <div style="margin-top:8px; color:#2ecc71; font-size:13px; font-weight: 600;">
+                                    ✅ Трейлер найден и сохранён: <a href="${trailerUrl}" target="_blank" style="color:#2ecc71; text-decoration:underline;">Смотреть</a>
+                                </div>
                             </div>
                         </div>
-                        <div class="actions"><button type="button" class="btn-del" onclick="document.getElementById('${rowId}').remove()">Пропустить</button></div>
                     `;
                 } catch (err) {
                     console.error(err);
@@ -292,26 +317,8 @@
                 }
             }
 
-            progressBox.textContent = `Готово. Обработано ${missing.length} фильм(ов).`;
+            progressBox.textContent = `Готово. Обработано ${missing.length} фильм(ов). Успешно добавлено: ${successCount}.`;
             scanBtn.disabled = false;
-        }
-
-        async function applyFoundPoster(movieId, posterUrl, rowId) {
-            try {
-                const { error } = await supabaseClient.from('collection').update({ poster: posterUrl }).eq('id', movieId);
-                if (error) throw error;
-
-                const movie = currentData.find(m => String(m.id) === String(movieId));
-                if (movie) movie.poster = posterUrl;
-
-                const row = document.getElementById(rowId);
-                if (row) row.innerHTML = `<div class="item-info"><img src="${posterSrc(posterUrl)}" data-original="${escapeHtml(posterUrl)}" onerror="handlePosterError(this)" alt="Постер" style="width:50px;height:72px;object-fit:cover;border-radius:4px;background:#000;"><div class="item-title" style="color:#2ecc71;">✅ Постер сохранён</div></div>`;
-
-                applyFilters();
-            } catch (error) {
-                console.error(error);
-                alert('Не удалось сохранить постер. Подробности в консоли.');
-            }
         }
 
         // escapeHtml() подключается из общего tmdb-helper.js
