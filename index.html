@@ -736,6 +736,19 @@
                 document.body.style.overflow = '';
             }, 250);
         }
+
+        // Закрытие по Esc — в дополнение к клику по крестику/фону, а не вместо них.
+        // Если открыто окошко с трейлером — закрываем сначала его, иначе карточку фильма.
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const trailerOverlay = document.getElementById('trailerOverlay');
+            const modalOverlay = document.getElementById('modalOverlay');
+            if (trailerOverlay && trailerOverlay.classList.contains('active')) {
+                closeTrailer();
+            } else if (modalOverlay && modalOverlay.classList.contains('active')) {
+                closeModal();
+            }
+        });
     </script>
 </body>
 </html>
