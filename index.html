@@ -165,16 +165,29 @@
         .home-row::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
 
         @media (max-width: 768px) {
-            .stats-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-            .stat-box { min-width: 0; padding: 12px 8px; }
-            .stat-box:last-child { grid-column: span 2; }
-            .stat-value { font-size: 20px; }
-            .stat-label { font-size: 9px; }
+            /* Статистика — компактная строка вместо двух рядов крупных плашек, чтобы контент начинался раньше */
+            .stats-bar {
+                display: flex; flex-wrap: nowrap; gap: 10px; overflow-x: auto;
+                margin-bottom: 28px; padding-bottom: 2px; scrollbar-width: none;
+            }
+            .stats-bar::-webkit-scrollbar { display: none; }
+            .stat-box { flex: 0 0 auto; min-width: 96px; padding: 10px 14px; }
+            .stat-value { font-size: 18px; }
+            .stat-label { font-size: 9px; white-space: nowrap; }
+
             .home-row { padding-top: 20px; padding-bottom: 30px; margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
             .home-row .card { flex-basis: 130px; }
             .home-row .card img { height: 195px; }
             .home-section-header h2 { font-size: 20px; }
-            .home-section { margin-bottom: 28px; }
+            .home-section { margin-bottom: 28px; position: relative; }
+
+            /* Тень-подсказка с правого края карусели — добавляется классом .scrollable
+               только тем секциям, где реально есть что доскроллить (см. renderHome) */
+            .home-section.scrollable::after {
+                content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 36px;
+                background: linear-gradient(to right, transparent, var(--bg-main) 75%);
+                pointer-events: none;
+            }
         }
 
         /* ТОП 100 — список по одному фильму в строку */
@@ -662,6 +675,25 @@
             }
 
             grid.innerHTML = html;
+            markScrollableRows();
+        }
+
+        // Помечает секции классом .scrollable там, где ряд карточек реально
+        // шире экрана — только для них CSS показывает тень-подсказку с края.
+        // Короткие ряды (влезли целиком) тень не получают.
+        function markScrollableRows() {
+            const grid = document.getElementById('contentGrid');
+            requestAnimationFrame(() => {
+                grid.querySelectorAll('.home-row').forEach(row => {
+                    const section = row.closest('.home-section');
+                    if (!section) return;
+                    if (row.scrollWidth > row.clientWidth + 4) {
+                        section.classList.add('scrollable');
+                    } else {
+                        section.classList.remove('scrollable');
+                    }
+                });
+            });
         }
 
         function renderHomeSection(title, items, filterKey) {
@@ -832,6 +864,15 @@
             else if (currentFilter !== 'main') {
                 goToFilter('main');
             }
+        });
+
+        // Пересчитываем тень-подсказку каруселей при повороте экрана / изменении размера окна
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                if (currentFilter === 'main') markScrollableRows();
+            }, 150);
         });
     </script>
 </body>
