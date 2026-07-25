@@ -815,7 +815,7 @@
             const trailerBtn = item.trailer ? `<div class="card-trailer-btn" onclick="openTrailer('${escapeAttr(item.trailer)}', event)" title="Смотреть трейлер">▶</div>` : '';
             return `
             <div class="card" onclick="openModal('${item.id}')">
-                <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" loading="lazy" decoding="async">
+                <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" decoding="async">
                 ${trailerBtn}
                 <div class="card-info">
                     <div class="card-title">${item.title}</div>
@@ -836,7 +836,7 @@
             return `
             <div class="top100-row" onclick="openModal('${item.id}')">
                 <div class="top100-rank ${rankClass}">${rank}</div>
-                <img class="top100-poster" src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" loading="lazy" decoding="async">
+                <img class="top100-poster" src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" decoding="async">
                 <div class="top100-info">
                     <div class="top100-title">${item.title}</div>
                     <div class="top100-meta">
@@ -870,7 +870,7 @@
         
             document.getElementById('modalBody').innerHTML = `
                 <div class="details-poster">
-                    <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" loading="lazy" decoding="async">
+                    <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" decoding="async">
                 </div>
                 <div class="details-info">
                     <div class="details-title">${item.title}</div>
