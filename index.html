@@ -83,18 +83,6 @@
         .card-meta { font-size: 12px; color: var(--text-muted); margin-top: 5px; display: flex; justify-content: space-between; }
         .rating { color: #f5c518; font-weight: bold; }
 
-        /* Значок рейтинга поверх постера, как в Кинопоиске: цветной прямоугольник в левом верхнем углу */
-        .card-rating-badge {
-            position: absolute; top: 10px; left: 10px; z-index: 3;
-            display: flex; align-items: center; gap: 4px;
-            padding: 3px 7px; border-radius: 5px; font-size: 13px; font-weight: 800;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-        }
-        .card-rating-badge.r-high { background: #38a044; color: #fff; }
-        .card-rating-badge.r-mid { background: #e5c515; color: #1a1a1a; }
-        .card-rating-badge.r-low { background: #e0463c; color: #fff; }
-        .card-rating-badge.r-none { background: rgba(0,0,0,0.6); color: #ccc; }
-
         /* Кнопка "Трейлер" поверх постера — полупрозрачная, проявляется при наведении */
         .card-trailer-btn {
             position: absolute; right: 10px; bottom: 82px; width: 34px; height: 34px; border-radius: 50%;
@@ -196,9 +184,7 @@
             .home-section-header h2 { font-size: 20px; }
             .home-section { margin-bottom: 28px; position: relative; }
 
-            /* На мобильном, как в Кинопоиске: под постером только название,
-               год/тип уходят — рейтинг уже виден бейджем на постере */
-            .home-row .card-meta { display: none; }
+            /* Карточка на мобильном без общего фона — только постер + подпись под ним */
             .home-row .card-info { padding: 10px 2px 0; }
             .home-row .card-title { white-space: normal; }
             .home-row .card { background: transparent; overflow: visible; }
@@ -824,22 +810,12 @@
             `;
         }
 
-        function ratingBadgeClass(rating) {
-            const r = parseFloat(rating);
-            if (isNaN(r)) return 'r-none';
-            if (r >= 7) return 'r-high';
-            if (r >= 5) return 'r-mid';
-            return 'r-low';
-        }
-
         function renderCard(item) {
             const typeName = getTypeName(item.type);
             const trailerBtn = item.trailer ? `<div class="card-trailer-btn" onclick="openTrailer('${escapeAttr(item.trailer)}', event)" title="Смотреть трейлер">▶</div>` : '';
-            const ratingBadge = `<div class="card-rating-badge ${ratingBadgeClass(item.rating)}">${item.rating || '—'}</div>`;
             return `
             <div class="card" onclick="openModal('${item.id}')">
                 <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" loading="lazy" decoding="async">
-                ${ratingBadge}
                 ${trailerBtn}
                 <div class="card-info">
                     <div class="card-title">${item.title}</div>
