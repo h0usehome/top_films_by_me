@@ -28,7 +28,16 @@
             /* Минималистичный узор из точек — едва заметный, полупрозрачный */
             background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.05) 1px, transparent 0);
             background-size: 22px 22px;
+            /* Если содержимое (пункты меню + свои списки) не помещается по высоте
+               окна — даём вертикальную прокрутку внутри сайдбара, а не обрезаем */
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.15) transparent;
         }
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
         .brand { font-size: 24px; font-weight: 800; padding: 0 30px; margin-bottom: 40px; letter-spacing: 1px; }
         .brand span { color: var(--primary); }
         .sidebar h3 { 
