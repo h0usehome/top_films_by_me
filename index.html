@@ -411,8 +411,51 @@
 
     <!-- Библиотека Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Подключаем наши общие функции -->
-    <script src="poster-helpers.js"></script>
+
+    <!-- Общие функции (раньше подключались отдельным файлом poster-helpers.js —
+         перенесены сюда, чтобы страница не ломалась, если этот файл потеряется
+         при копировании/скачивании html отдельно от папки проекта) -->
+    <script>
+        // Безопасно экранирует спецсимволы для вставки в HTML-атрибуты
+        function escapeAttr(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Возвращает рабочую ссылку на постер: пустые значения — заглушка,
+        // ссылки на Google Drive — приводятся к прямому виду для <img>
+        function posterSrc(poster) {
+            if (!poster || !String(poster).trim()) return FALLBACK_POSTER;
+            const url = String(poster).trim();
+
+            const driveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([\w-]+)/);
+            if (driveMatch) {
+                return `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
+            }
+
+            return url;
+        }
+
+        // Заглушка-постер (тёмный SVG с иконкой), если картинка не загрузилась или не задана
+        const FALLBACK_POSTER = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300">
+                <rect width="200" height="300" fill="#1f1f1f"/>
+                <text x="50%" y="50%" fill="#555" font-size="16" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">Нет постера</text>
+            </svg>`
+        );
+
+        // Обработчик ошибки загрузки постера — подставляет заглушку и снимает обработчик,
+        // чтобы избежать бесконечного цикла ошибок
+        function handlePosterError(imgEl) {
+            imgEl.onerror = null;
+            imgEl.src = FALLBACK_POSTER;
+        }
+    </script>
     
     <script>
         const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
