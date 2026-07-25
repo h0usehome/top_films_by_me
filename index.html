@@ -259,6 +259,14 @@
             .details-poster img { border-bottom-left-radius: 12px; border-top-right-radius: 0; }
         }
 
+        /* Затемняющая подложка позади сайдбара на мобильных — клик по ней закрывает сайдбар */
+        .sidebar-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 90; opacity: 0; transition: opacity 0.3s;
+        }
+        .sidebar-overlay.open { display: block; }
+        .sidebar-overlay.visible { opacity: 1; }
+
         /* Мобильная адаптация */
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); }
@@ -323,6 +331,9 @@
         <h3>Мои списки</h3>
         <div id="dynamicLists"></div>
     </nav>
+
+    <!-- Подложка для закрытия сайдбара кликом мимо -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
     <!-- Основной контент -->
     <main class="main-content">
@@ -466,9 +477,47 @@
             }
         }
 
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
+        function isSidebarOpen() {
+            return document.getElementById('sidebar').classList.contains('open');
         }
+
+        function openSidebar() {
+            document.getElementById('sidebar').classList.add('open');
+            const overlay = document.getElementById('sidebarOverlay');
+            overlay.classList.add('open');
+            requestAnimationFrame(() => overlay.classList.add('visible'));
+
+            // Добавляем запись в историю браузера, чтобы аппаратная/жестовая кнопка "Назад"
+            // на мобильном сначала закрывала сайдбар, а не уходила со страницы/сайта
+            history.pushState({ sidebarOpen: true }, '');
+        }
+
+        function closeSidebar(skipHistoryBack) {
+            document.getElementById('sidebar').classList.remove('open');
+            const overlay = document.getElementById('sidebarOverlay');
+            overlay.classList.remove('visible');
+            setTimeout(() => overlay.classList.remove('open'), 300);
+
+            // Если закрытие вызвано не самим событием "Назад" — откатываем добавленную запись истории
+            if (!skipHistoryBack && history.state && history.state.sidebarOpen) {
+                history.back();
+            }
+        }
+
+        function toggleSidebar() {
+            if (isSidebarOpen()) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        }
+
+        // Кнопка "Назад" (в т.ч. на мобильных) закрывает открытый сайдбар вместо ухода со страницы
+        window.addEventListener('popstate', () => {
+            if (isSidebarOpen()) {
+                closeSidebar(true);
+            }
+        });
 
         function setFilter(filterType, el) {
             currentFilter = filterType;
@@ -490,7 +539,7 @@
                 backBtn.style.display = (filterType === 'main') ? 'none' : 'flex';
             }
             
-            if(window.innerWidth <= 768) toggleSidebar(); 
+            if(window.innerWidth <= 768 && isSidebarOpen()) closeSidebar();
             render();
         }
 
@@ -857,6 +906,10 @@
             else if (modalOverlay && modalOverlay.classList.contains('active')) {
                 closeModal();
             } 
+            // Иначе, если открыт мобильный сайдбар — закрываем его
+            else if (isSidebarOpen()) {
+                closeSidebar();
+            }
             // Иначе, если мы не на Главной странице — возвращаемся на неё
             else if (currentFilter !== 'main') {
                 goToFilter('main');
