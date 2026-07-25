@@ -435,9 +435,28 @@
             </svg>`
         );
 
-        // Обработчик ошибки загрузки постера — подставляет заглушку и снимает обработчик,
-        // чтобы избежать бесконечного цикла ошибок
+        // Обработчик ошибки загрузки постера.
+        // У части пользователей (особенно в Safari — из-за iCloud Private Relay,
+        // блокировщиков или локальных DNS/сетевых ограничений) браузер может не
+        // достучаться напрямую до image.tmdb.org, хотя сервер картинки в порядке.
+        // Поэтому при первом сбое пробуем подтянуть ту же картинку через публичный
+        // прокси-CDN (wsrv.nl) — он сам сходит за оригиналом на своей стороне и
+        // отдаёт результат со своего домена, в обход локальной блокировки.
+        // И только если не помогло и это — показываем заглушку.
+        function proxiedPosterUrl(url) {
+            const bare = String(url).replace(/^https?:\/\//, '');
+            return `https://wsrv.nl/?url=${encodeURIComponent(bare)}`;
+        }
+
         function handlePosterError(imgEl) {
+            const original = imgEl.dataset.original;
+
+            if (!imgEl.dataset.triedProxy && original && original.trim()) {
+                imgEl.dataset.triedProxy = '1';
+                imgEl.src = proxiedPosterUrl(original.trim());
+                return;
+            }
+
             imgEl.onerror = null;
             imgEl.src = FALLBACK_POSTER;
         }
