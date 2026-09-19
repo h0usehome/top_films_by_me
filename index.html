@@ -359,12 +359,15 @@
 
     <!-- Основной контент -->
     <main class="main-content">
-        <header>
+       <header>
     <div style="display: flex; align-items: center; gap: 15px;">
         <button class="burger" onclick="toggleSidebar()">☰</button>
         <div class="page-title" id="pageTitle">Главная</div>
-        <!-- Новая кнопка-крестик (по умолчанию скрыта на Главной) -->
         <button id="backToMainBtn" class="back-to-main-btn" onclick="goToFilter('main')" style="display: none;" title="Вернуться на главную">✕</button>
+        
+        <!-- СЧЕТЧИК ОНЛАЙН -->
+        <div id="online-counter" style="font-size: 14px; color: var(--primary); font-weight: 700; margin-left: 10px; border: 1px solid rgba(229,9,20,0.3); padding: 4px 10px; border-radius: 20px; background: rgba(229,9,20,0.1);">Онлайн: 0</div>
+        
     </div>
     
     <div style="display: none; gap: 10px; flex-wrap: wrap;" id="filtersBar">
@@ -473,11 +476,33 @@
     
     <script>
         const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0YWNidmN3c3lhanBlYWNkbXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NjM4NDgsImV4cCI6MjEwMDEzOTg0OH0.OhjANu7A7Wb7GUsBjVzrvjkGJlgVsehSf6EyC1DMxR8';
+        const SUPABASE_KEY = 'eyJhbGci... (твой длинный ключ) ...';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // === НАЧАЛО КОДА СЧЕТЧИКА ОНЛАЙН ===
+        const onlineChannel = supabaseClient.channel('online-users');
+
+        onlineChannel
+          .on('presence', { event: 'sync' }, () => {
+            const presenceState = onlineChannel.presenceState();
+            const onlineCount = Object.keys(presenceState).length;
+            const counterEl = document.getElementById('online-counter');
+            if (counterEl) {
+                counterEl.innerText = `Онлайн: ${onlineCount}`;
+            }
+          })
+          .subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+              await onlineChannel.track({
+                user_id: 'guest_' + Math.random().toString(36).substring(2, 9),
+                online_at: new Date().toISOString()
+              });
+            }
+          });
+        // === КОНЕЦ КОДА СЧЕТЧИКА ===
         
         let allData = [];
-        let currentFilter = 'main'; 
+        let currentFilter = 'main';
         let currentSort = 'default';
         let currentGenre = 'all'; 
 
