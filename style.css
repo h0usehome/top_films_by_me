@@ -167,26 +167,53 @@ header {
 
 /* Модальное окно (Объемное) */
 .modal-overlay {
-    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    display: none; justify-content: center; align-items: center; z-index: 1000; padding: 20px; opacity: 0; transition: opacity 0.3s;
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); 
+    backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); /* Уменьшили размытие для плавности */
+    display: none; justify-content: center; align-items: center; z-index: 1000; padding: 20px; 
+    opacity: 0; transition: opacity 0.25s ease-out;
+    will-change: opacity; /* Защита от лагов при появлении */
 }
 .modal-overlay.active { display: flex; opacity: 1; }
+
 .modal-content {
     background: var(--surface); border-radius: 16px; max-width: 850px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative;
     box-shadow: 0 25px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.05);
+    transform: scale(0.98); transition: transform 0.25s ease-out; /* Плавное увеличение */
+    will-change: transform; /* Включаем аппаратное ускорение */
 }
+.modal-overlay.active .modal-content {
+    transform: scale(1);
+}
+
 .modal-close {
     position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
     border: 1px solid rgba(255,255,255,0.1); color: white; width: 36px; height: 36px; border-radius: 50%;
     font-size: 20px; cursor: pointer; z-index: 10; display: flex; justify-content: center; align-items: center; transition: all 0.3s ease;
 }
 .modal-close:hover { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 15px var(--primary-glow); transform: rotate(90deg); }
-.details-poster img { border-radius: 16px 16px 0 0; }
-@media (min-width: 768px) { .details-poster img { border-radius: 16px 0 0 16px; } }
+
+/* ВОЗВРАЩАЕМ МАКЕТ: Постер и контент */
+.modal-body { display: flex; flex-direction: column; }
+.details-poster { flex: 0 0 300px; display: flex; align-items: flex-start; }
+.details-poster img { width: 100%; height: auto; object-fit: cover; border-radius: 16px 16px 0 0; display: block; }
 .details-info { padding: 40px; flex: 1; }
+
+/* Десктопная версия: слева постер, справа текст */
+@media (min-width: 768px) { 
+    .modal-body { flex-direction: row; align-items: flex-start; } 
+    .details-poster { position: sticky; top: 0; }
+    .details-poster img { border-radius: 16px 0 0 16px; } 
+}
+
+/* Внутренние элементы карточки */
 .details-title { font-size: 34px; font-weight: 900; margin-bottom: 12px; line-height: 1.2; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+.details-tags { margin-bottom: 25px; color: var(--text-muted); font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
 .tag { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 6px; font-weight: 500; }
+.details-section { margin-bottom: 25px; }
+.details-section h4 { margin-bottom: 8px; color: var(--text-main); font-size: 16px; font-weight: 600; }
+.details-section p { color: #b3b3b3; line-height: 1.6; font-size: 15px; }
+
 .trailer-btn-inline {
     background: linear-gradient(135deg, var(--primary), #a60000); color: #fff; border: none; border-radius: 8px;
     padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex;
