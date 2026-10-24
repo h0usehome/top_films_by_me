@@ -361,17 +361,21 @@ function renderHomeSection(title, items, filterKey) {
 function renderCard(item) {
     const typeName = getTypeName(item.type);
     const trailerBtn = item.trailer ? `<div class="card-trailer-btn" onclick="openTrailer('${escapeAttr(item.trailer)}', event)" title="Смотреть трейлер">▶</div>` : '';
+    const ratingBadge = item.rating ? `<div class="card-badge">★ ${item.rating}</div>` : '';
+    
     return `
     <div class="card" onclick="openModal('${item.id}')">
+        ${ratingBadge}
         <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" decoding="async">
-        ${trailerBtn}
-        <div class="card-info">
+        <div class="card-overlay">
             <div class="card-title">${item.title}</div>
             <div class="card-meta">
-                <span>${item.year} • ${typeName}</span>
-                <span class="rating">★ ${item.rating || '-'}</span>
+                <span>${item.year}</span>
+                <span>•</span>
+                <span>${typeName}</span>
             </div>
         </div>
+        ${trailerBtn}
     </div>
     `;
 }
@@ -402,9 +406,11 @@ function openModal(id) {
     if (!item) return;
 
     const typeName = getTypeName(item.type);
+    
+    // Формируем жанры с новым уникальным классом
     let genresHtml = '';
     if (item.genres) {
-        genresHtml = item.genres.split(',').map(g => `<span class="tag">${g.trim()}</span>`).join('');
+        genresHtml = item.genres.split(',').map(g => `<span class="tag tag-genre">${g.trim()}</span>`).join('');
     }
     
     const imgStyle = 'max-width: 100%; height: auto; border-radius: 8px; margin: 15px 0; display: block; box-shadow: 0 5px 15px rgba(0,0,0,0.5);';
@@ -417,12 +423,15 @@ function openModal(id) {
         </div>
         <div class="details-info">
             <div class="details-title">${item.title}</div>
+            
+            <!-- НОВАЯ РАЗМЕТКА ТЕГОВ -->
             <div class="details-tags">
-                <span class="tag">${typeName}</span>
-                <span class="tag">${item.year}</span>
-                <span class="tag" style="color: #f5c518;">★ ${item.rating || '-'}</span>
+                <span class="tag tag-type">${typeName}</span>
+                <span class="tag tag-year">${item.year}</span>
+                ${item.rating ? `<span class="tag tag-rating">★ ${item.rating}</span>` : ''}
                 ${genresHtml}
             </div>
+            
             ${item.trailer ? `<button type="button" class="trailer-btn-inline" onclick="openTrailer('${escapeAttr(item.trailer)}', event)">▶ Смотреть трейлер</button>` : ''}
             ${item.description ? `
             <div class="details-section">
