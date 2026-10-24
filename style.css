@@ -165,25 +165,56 @@ header {
 .top100-poster { flex: 0 0 70px; width: 70px; height: 100px; object-fit: cover; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
 .top100-title { font-size: 19px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
 
-/* Модальное окно (Объемное) */
+
+/* =========================================
+   МОДАЛЬНОЕ ОКНО ФИЛЬМА (Без лагов)
+========================================= */
 .modal-overlay {
-    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); 
-    backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); /* Уменьшили размытие для плавности */
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.92); /* Убрали блюр, сделали фон чуть темнее */
     display: none; justify-content: center; align-items: center; z-index: 1000; padding: 20px; 
-    opacity: 0; transition: opacity 0.25s ease-out;
-    will-change: opacity; /* Защита от лагов при появлении */
+    opacity: 0; transition: opacity 0.2s ease-out;
+    will-change: opacity;
 }
 .modal-overlay.active { display: flex; opacity: 1; }
 
+.modal-content {
+    background: var(--surface); border-radius: 16px; max-width: 850px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.05);
+    transform: scale(0.97); transition: transform 0.2s ease-out;
+    will-change: transform;
+}
+.modal-overlay.active .modal-content {
+    transform: scale(1);
+}
+
+/* =========================================
+   ОКНО ТРЕЙЛЕРА (Возвращаем по центру)
+========================================= */
+.trailer-overlay {
+    position: fixed; inset: 0; background: rgba(0, 0, 0, 0.95);
+    display: none; justify-content: center; align-items: center;
+    z-index: 1100; padding: 20px; opacity: 0; transition: opacity 0.25s;
+    will-change: opacity;
+}
+.trailer-overlay.active { display: flex; opacity: 1; }
+
+.trailer-frame {
+    width: 100%; max-width: 1000px; aspect-ratio: 16 / 9; background: #000;
+    border-radius: 12px; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,0.9);
+    transform: scale(0.97); transition: transform 0.25s ease-out;
+    will-change: transform;
+}
+.trailer-overlay.active .trailer-frame {
+    transform: scale(1);
+}
+.trailer-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
 .modal-content {
     background: var(--surface); border-radius: 16px; max-width: 850px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative;
     box-shadow: 0 25px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.05);
     transform: scale(0.98); transition: transform 0.25s ease-out; /* Плавное увеличение */
     will-change: transform; /* Включаем аппаратное ускорение */
-}
-.modal-overlay.active .modal-content {
-    transform: scale(1);
 }
 
 .modal-close {
