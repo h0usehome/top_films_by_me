@@ -124,16 +124,29 @@ header {
 
 /* Кнопка "Трейлер" теперь по центру карточки */
 .card-trailer-btn {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8);
-    width: 48px; height: 48px; border-radius: 50%;
+    position: absolute; 
+    top: auto;
+    left: auto;
+    bottom: 20px; 
+    right: 20px; 
+    transform: scale(0.8);
+    width: 44px; height: 44px; border-radius: 50%;
     background: rgba(229, 9, 20, 0.85); color: #fff; display: flex; align-items: center; justify-content: center;
-    font-size: 16px; padding-left: 4px; opacity: 0; 
+    font-size: 15px; padding-left: 4px; opacity: 0; 
     box-shadow: 0 0 20px rgba(229, 9, 20, 0.5);
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; z-index: 3;
 }
-.card:hover .card-trailer-btn { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-.card-trailer-btn:hover { background: #ff0f1a; box-shadow: 0 0 30px rgba(229, 9, 20, 0.8); transform: translate(-50%, -50%) scale(1.15); }
 
+.card:hover .card-trailer-btn { 
+    opacity: 1; 
+    transform: scale(1); 
+}
+
+.card-trailer-btn:hover { 
+    background: #ff0f1a; 
+    box-shadow: 0 0 30px rgba(229, 9, 20, 0.8); 
+    transform: scale(1.15); 
+}
 
 /* =========================================
    СТИЛИ ТЕГОВ ДЛЯ МОДАЛЬНОГО ОКНА
