@@ -82,7 +82,7 @@ header {
 /* =========================================
    СЕТКА И ОБЪЕМНЫЕ КАРТОЧКИ (Новый дизайн)
 ========================================= */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 30px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 30px; }
 .card { 
     background: #050505; border-radius: 12px; overflow: hidden; cursor: pointer; 
     border: 1px solid rgba(255,255,255,0.05);
@@ -94,8 +94,8 @@ header {
 }
 .card:hover {
     transform: translateY(-8px) scale(1.03) translateZ(0);
-    box-shadow: 0 15px 35px rgba(0,0,0,0.7), 0 0 25px rgba(229, 9, 20, 0.15);
-    border-color: rgba(229, 9, 20, 0.3);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.7), 0 0 25px rgba(244, 231, 232, 0.15);
+    border-color: rgba(252, 246, 246, 0.522);
 }
 
 /* Изображение тянется на всю карточку */
@@ -189,7 +189,7 @@ header {
     margin-top: -10px; margin-bottom: -20px; margin-left: -25px; margin-right: -25px;
     scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent; 
 }
-.home-row .card { flex: 0 0 180px; scroll-snap-align: start; }
+.home-row .card { flex: 0 0 220px; scroll-snap-align: start; }
 .home-row::-webkit-scrollbar { height: 6px; }
 .home-row::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
 
