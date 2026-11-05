@@ -48,6 +48,10 @@ body {
 
 /* Основной контент */
 .main-content { flex: 1; margin-left: var(--sidebar-width); display: flex; flex-direction: column; transition: margin-left 0.3s; }
+.main-content {
+    min-width: 0; 
+    overflow-x: hidden; /* Обрезаем всё, что пытается вылезти за пределы экрана */
+}
 
 /* Шапка (Glassmorphism) */
 header { 
@@ -292,6 +296,29 @@ header {
 .details-poster { flex: 0 0 300px; display: flex; align-items: flex-start; }
 .details-poster img { width: 100%; height: auto; object-fit: cover; border-radius: 16px 16px 0 0; display: block; }
 .details-info { padding: 40px; flex: 1; }
+
+
+
+.home-row {
+    display: flex;
+    flex-wrap: nowrap; /* Запрещаем перенос карточек на новые строки */
+    overflow-x: auto;  /* Включаем горизонтальный скролл */
+    gap: 20px;         /* Отступ между карточками (настройте под себя) */
+    
+    /* Добавляем небольшой отступ снизу, чтобы ползунок скролла не перекрывал контент */
+    padding-bottom: 16px; 
+}
+
+/* Скрываем визуальный ползунок скроллбара (опционально, для эстетики) */
+.home-row::-webkit-scrollbar {
+    display: none;
+}
+.home-row {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+
 
 /* Десктопная версия: слева постер, справа текст */
 @media (min-width: 768px) { 
