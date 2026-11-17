@@ -97,7 +97,9 @@ function urlFor(s) {
     if (s.sort !== 'default') p.set('sort', s.sort);
     if (s.film) p.set('film', s.film);
     const query = p.toString();
-    return query ? `?${query}` : location.pathname;
+    // Внутри Telegram в адресе лежат параметры запуска (#tgWebAppData=…), их не трогаем
+    const hash = /tgWebApp/.test(location.hash) ? location.hash : '';
+    return (query ? `?${query}` : location.pathname) + hash;
 }
 
 function viewKey(s) {
@@ -119,6 +121,28 @@ function applyState(next) {
     if (viewChanged || !$('contentGrid').dataset.ready) renderView();
     if (viewKey(prev) !== viewKey(next)) window.scrollTo(0, 0);
     if (prev.film !== next.film || !$('modalOverlay').hidden !== Boolean(next.film)) syncModal();
+    notifyChange();
+}
+
+// Сообщает tg.js, что изменилось то, от чего зависит кнопка «Назад» Telegram
+function notifyChange() {
+    document.dispatchEvent(new CustomEvent('app:change'));
+}
+
+const trailerOpen = () => $('trailerOverlay').classList.contains('active');
+const drawerOpen = () => document.body.classList.contains('drawer-open');
+
+function canGoBack() {
+    return trailerOpen() || Boolean(state.film) || drawerOpen() || state.view !== 'main' || Boolean(state.q);
+}
+
+// Шаг назад: закрыть трейлер → карточку → меню → поиск → вернуться на главную
+function goBack() {
+    if (trailerOpen()) closeTrailer();
+    else if (state.film) closeFilm();
+    else if (drawerOpen()) closeDrawer();
+    else if (document.activeElement === $('search') && state.q) go({ ...state, q: '' }, 'replace');
+    else if (state.view !== 'main' || state.q) go({ ...stateFromUrl(''), film: null });
 }
 
 // Переход по ссылке из меню: новый раздел без поиска и фильтров
@@ -386,12 +410,13 @@ function openTrailer(url) {
     const overlay = $('trailerOverlay');
     overlay.hidden = false;
     lockScroll();
-    requestAnimationFrame(() => overlay.classList.add('active'));
+    requestAnimationFrame(() => { overlay.classList.add('active'); notifyChange(); });
 }
 
 function closeTrailer() {
     const overlay = $('trailerOverlay');
     overlay.classList.remove('active');
+    notifyChange();
     setTimeout(() => {
         overlay.hidden = true;
         $('trailerFrame').innerHTML = '';
@@ -405,11 +430,13 @@ function openDrawer() {
     document.body.classList.add('drawer-open');
     $('burger').setAttribute('aria-expanded', 'true');
     history.pushState({ drawer: true }, '', location.href);
+    notifyChange();
 }
 
 function hideDrawer() {
     document.body.classList.remove('drawer-open');
     $('burger').setAttribute('aria-expanded', 'false');
+    notifyChange();
 }
 
 function closeDrawer() {
@@ -437,7 +464,7 @@ document.addEventListener('click', (e) => {
     const action = e.target.closest('[data-action]');
     if (!action) return;
     switch (action.dataset.action) {
-        case 'drawer': document.body.classList.contains('drawer-open') ? closeDrawer() : openDrawer(); break;
+        case 'drawer': drawerOpen() ? closeDrawer() : openDrawer(); break;
         case 'close-drawer': closeDrawer(); break;
         case 'close-film': closeFilm(); break;
         case 'close-trailer': closeTrailer(); break;
@@ -450,12 +477,7 @@ $('modalOverlay').addEventListener('click', (e) => { if (e.target === e.currentT
 $('trailerOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeTrailer(); });
 
 document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    if (!$('trailerOverlay').hidden) closeTrailer();
-    else if (state.film) closeFilm();
-    else if (document.body.classList.contains('drawer-open')) closeDrawer();
-    else if (document.activeElement === $('search') && state.q) go({ ...state, q: '' }, 'replace');
-    else if (state.view !== 'main' || state.q) go({ ...stateFromUrl(''), film: null });
+    if (e.key === 'Escape') goBack();
 });
 
 let searchTimer;
@@ -497,7 +519,19 @@ async function init() {
     renderSidebarLists();
     renderGenreOptions();
     renderView();
+    applyStartParam();
     applyState(stateFromUrl());
+}
+
+// Ссылка вида t.me/бот/app?startapp=film_42 (или view_top100) открывает
+// приложение сразу на нужном фильме или разделе
+function applyStartParam() {
+    const param = new URLSearchParams(location.hash.slice(1)).get('tgWebAppStartParam');
+    if (!param || location.search) return;
+    const film = param.match(/^film_(\d+)$/);
+    const view = param.match(/^view_(\w+)$/);
+    if (film) history.replaceState(null, '', urlFor({ ...stateFromUrl(''), film: film[1] }));
+    else if (view && VIEW_TITLES[view[1]]) history.replaceState(null, '', urlFor({ ...stateFromUrl(''), view: view[1] }));
 }
 
 init();
