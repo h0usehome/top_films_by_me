@@ -157,6 +157,8 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--primary)
 .filled-info { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .filled-title { font-size: 18px; font-weight: 800; overflow-wrap: anywhere; }
 .filled-meta { color: var(--muted); font-size: 13px; }
+.filled-more { color: #c4c4c4; font-size: 12px; line-height: 1.45; white-space: pre-line; }
+.filled-more:empty { display: none; }
 .filled-info .btn { margin-top: 6px; }
 
 .details { display: flex; flex-direction: column; gap: 16px; }
