@@ -20,6 +20,8 @@
 
     window.tgApp = null;
 
+    // Свежие данные запуска всегда в адресе (#tgWebAppData=…). Запасная копия в sessionStorage
+    // нужна только при переходе между страницами внутри одного запуска.
     const hashData = new URLSearchParams(location.hash.slice(1)).get('tgWebAppData');
     if (hashData) {
         sessionStorage.setItem('tg-mini-app', '1');
@@ -31,14 +33,22 @@
         return;
     }
 
+    // Хранилище браузера у Telegram общее для всех аккаунтов на устройстве,
+    // поэтому всё сохранённое привязываем к id пользователя Telegram
+    let tgUserId = null;
+    try { tgUserId = JSON.parse(new URLSearchParams(initData).get('user')).id; } catch { /* нет пользователя */ }
+    const profileKey = `${PROFILE_KEY}:${tgUserId}`;
+    localStorage.removeItem(PROFILE_KEY); // старый общий кеш
+
     document.documentElement.classList.add('tg');
 
-    // Профиль с прошлого запуска — чтобы сразу показать свою коллекцию, не дожидаясь входа
-    window.tgCachedProfile = store.get(localStorage, PROFILE_KEY);
+    // Профиль с прошлого запуска этого же аккаунта — чтобы сразу показать свою коллекцию
+    window.tgCachedProfile = tgUserId ? store.get(localStorage, profileKey) : null;
 
     window.tgAuth = (async () => {
         const cached = store.get(sessionStorage, AUTH_KEY);
-        if (cached && cached.expires_at * 1000 > Date.now() + 60000) return cached;
+        if (cached && tgUserId && cached.tg_user_id === tgUserId && cached.expires_at * 1000 > Date.now() + 60000) return cached;
+        sessionStorage.removeItem(AUTH_KEY);
         try {
             const res = await fetch(TG_FUNCTION_URL, {
                 method: 'POST',
@@ -47,8 +57,9 @@
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            data.tg_user_id = tgUserId;
             store.set(sessionStorage, AUTH_KEY, data);
-            store.set(localStorage, PROFILE_KEY, data.profile);
+            if (tgUserId) store.set(localStorage, profileKey, data.profile);
             return data;
         } catch (err) {
             console.error('Вход через Telegram не удался:', err);
