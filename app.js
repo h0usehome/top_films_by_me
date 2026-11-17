@@ -8,6 +8,21 @@ function escapeAttr(str) {
         .replace(/'/g, '&#39;');
 }
 
+// escapeAttr экранирует и < >, поэтому годится и для текста внутри HTML
+const escapeHtml = escapeAttr;
+
+// Картинки внутри описания/отзыва: [img]https://...[/img].
+// Текст сначала экранируется целиком, потом пропускаются только http(s)-ссылки,
+// чтобы через описание нельзя было вставить свой HTML или скрипт.
+function formatRichText(text) {
+    const imgStyle = 'max-width: 100%; height: auto; border-radius: 8px; margin: 15px 0; display: block; box-shadow: 0 5px 15px rgba(0,0,0,0.5);';
+    return escapeHtml(text || '').replace(/\[img\](.*?)\[\/img\]/gi, (m, url) => {
+        return /^https?:\/\/[^\s"'<>]+$/i.test(url)
+            ? `<img src="${url}" style="${imgStyle}" alt="Иллюстрация" loading="lazy">`
+            : '';
+    });
+}
+
 function posterSrc(poster) {
     if (!poster || !String(poster).trim()) return FALLBACK_POSTER;
     const url = String(poster).trim();
@@ -41,9 +56,7 @@ function handlePosterError(imgEl) {
     imgEl.src = FALLBACK_POSTER;
 }
 
-const SUPABASE_URL = 'https://ktacbvcwsyajpeacdmwt.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0YWNidmN3c3lhanBlYWNkbXd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1NjM4NDgsImV4cCI6MjEwMDEzOTg0OH0.OhjANu7A7Wb7GUsBjVzrvjkGJlgVsehSf6EyC1DMxR8';        
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// SUPABASE_URL, SUPABASE_KEY и supabaseClient подключаются из общего config.js
 
 const onlineChannel = supabaseClient.channel('online-users');
 
@@ -194,7 +207,7 @@ function generateCustomLists() {
     const uniqueLists = getUniqueCustomLists();
     const container = document.getElementById('dynamicLists');
     container.innerHTML = uniqueLists.map(listName => 
-        `<div class="nav-item" data-filter="${escapeAttr(listName)}" onclick="setFilter('${listName.replace(/'/g, "\\'")}', this)">📌 ${listName}</div>`
+        `<div class="nav-item" data-filter="${escapeAttr(listName)}" onclick="setFilter(this.dataset.filter, this)">📌 ${escapeHtml(listName)}</div>`
     ).join('');
 }
 
@@ -346,12 +359,12 @@ function markScrollableRows() {
 }
 
 function renderHomeSection(title, items, filterKey) {
-    const safeKey = filterKey.replace(/'/g, "\\'");
+    const key = escapeAttr(filterKey);
     return `
     <div class="home-section">
         <div class="home-section-header">
-            <h2 onclick="goToFilter('${safeKey}')">${escapeAttr(title)}</h2>
-            <span class="see-all" onclick="goToFilter('${safeKey}')">Смотреть все →</span>
+            <h2 data-filter="${key}" onclick="goToFilter(this.dataset.filter)">${escapeHtml(title)}</h2>
+            <span class="see-all" data-filter="${key}" onclick="goToFilter(this.dataset.filter)">Смотреть все →</span>
         </div>
         <div class="home-row">${items.map(renderCard).join('')}</div>
     </div>
@@ -360,17 +373,17 @@ function renderHomeSection(title, items, filterKey) {
 
 function renderCard(item) {
     const typeName = getTypeName(item.type);
-    const trailerBtn = item.trailer ? `<div class="card-trailer-btn" onclick="openTrailer('${escapeAttr(item.trailer)}', event)" title="Смотреть трейлер">▶</div>` : '';
-    const ratingBadge = item.rating ? `<div class="card-badge">★ ${item.rating}</div>` : '';
+    const trailerBtn = item.trailer ? `<div class="card-trailer-btn" data-trailer="${escapeAttr(item.trailer)}" onclick="openTrailer(this.dataset.trailer, event)" title="Смотреть трейлер">▶</div>` : '';
+    const ratingBadge = item.rating ? `<div class="card-badge">★ ${escapeHtml(item.rating)}</div>` : '';
     
     return `
-    <div class="card" onclick="openModal('${item.id}')">
+    <div class="card" data-id="${escapeAttr(item.id)}" onclick="openModal(this.dataset.id)">
         ${ratingBadge}
-        <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" decoding="async">
+        <img src="${escapeAttr(posterSrc(item.poster))}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="${escapeAttr(item.title)}" loading="lazy" decoding="async">
         <div class="card-overlay">
-            <div class="card-title">${item.title}</div>
+            <div class="card-title">${escapeHtml(item.title)}</div>
             <div class="card-meta">
-                <span>${item.year}</span>
+                <span>${escapeHtml(item.year)}</span>
                 <span>•</span>
                 <span>${typeName}</span>
             </div>
@@ -384,16 +397,16 @@ function renderTop100Row(item) {
     const typeName = getTypeName(item.type);
     const rank = item.toprank;
     const rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
-    const trailerLink = item.trailer ? `<span class="see-all" onclick="openTrailer('${escapeAttr(item.trailer)}', event)">▶ Трейлер</span>` : '';
+    const trailerLink = item.trailer ? `<span class="see-all" data-trailer="${escapeAttr(item.trailer)}" onclick="openTrailer(this.dataset.trailer, event)">▶ Трейлер</span>` : '';
     return `
-    <div class="top100-row" onclick="openModal('${item.id}')">
-        <div class="top100-rank ${rankClass}">${rank}</div>
-        <img class="top100-poster" src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" decoding="async">
+    <div class="top100-row" data-id="${escapeAttr(item.id)}" onclick="openModal(this.dataset.id)">
+        <div class="top100-rank ${rankClass}">${escapeHtml(rank)}</div>
+        <img class="top100-poster" src="${escapeAttr(posterSrc(item.poster))}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="${escapeAttr(item.title)}" loading="lazy" decoding="async">
         <div class="top100-info">
-            <div class="top100-title">${item.title}</div>
+            <div class="top100-title">${escapeHtml(item.title)}</div>
             <div class="top100-meta">
-                <span>${item.year} • ${typeName}</span>
-                <span class="rating">★ ${item.rating || '-'}</span>
+                <span>${escapeHtml(item.year)} • ${typeName}</span>
+                <span class="rating">★ ${escapeHtml(item.rating || '-')}</span>
                 ${trailerLink}
             </div>
         </div>
@@ -410,29 +423,28 @@ function openModal(id) {
     // Формируем жанры с новым уникальным классом
     let genresHtml = '';
     if (item.genres) {
-        genresHtml = item.genres.split(',').map(g => `<span class="tag tag-genre">${g.trim()}</span>`).join('');
+        genresHtml = item.genres.split(',').map(g => `<span class="tag tag-genre">${escapeHtml(g.trim())}</span>`).join('');
     }
     
-    const imgStyle = 'max-width: 100%; height: auto; border-radius: 8px; margin: 15px 0; display: block; box-shadow: 0 5px 15px rgba(0,0,0,0.5);';
-    let formattedDesc = (item.description || '').replace(/\[img\](.*?)\[\/img\]/gi, `<img src="$1" style="${imgStyle}" alt="Иллюстрация">`);
-    let formattedReview = (item.review || '').replace(/\[img\](.*?)\[\/img\]/gi, `<img src="$1" style="${imgStyle}" alt="Иллюстрация">`);
+    const formattedDesc = formatRichText(item.description);
+    const formattedReview = formatRichText(item.review);
 
     document.getElementById('modalBody').innerHTML = `
         <div class="details-poster">
-            <img src="${posterSrc(item.poster)}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="Постер" decoding="async">
+            <img src="${escapeAttr(posterSrc(item.poster))}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="${escapeAttr(item.title)}" decoding="async">
         </div>
         <div class="details-info">
-            <div class="details-title">${item.title}</div>
+            <div class="details-title">${escapeHtml(item.title)}</div>
             
             <!-- НОВАЯ РАЗМЕТКА ТЕГОВ -->
             <div class="details-tags">
                 <span class="tag tag-type">${typeName}</span>
-                <span class="tag tag-year">${item.year}</span>
-                ${item.rating ? `<span class="tag tag-rating">★ ${item.rating}</span>` : ''}
+                <span class="tag tag-year">${escapeHtml(item.year)}</span>
+                ${item.rating ? `<span class="tag tag-rating">★ ${escapeHtml(item.rating)}</span>` : ''}
                 ${genresHtml}
             </div>
             
-            ${item.trailer ? `<button type="button" class="trailer-btn-inline" onclick="openTrailer('${escapeAttr(item.trailer)}', event)">▶ Смотреть трейлер</button>` : ''}
+            ${item.trailer ? `<button type="button" class="trailer-btn-inline" data-trailer="${escapeAttr(item.trailer)}" onclick="openTrailer(this.dataset.trailer, event)">▶ Смотреть трейлер</button>` : ''}
             ${item.description ? `
             <div class="details-section">
                 <h4>Описание</h4>
