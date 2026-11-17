@@ -35,10 +35,11 @@
                     </div>
 
                     <div class="filled-card" id="filledCard" hidden>
-                        <img id="posterPreview" alt="">
+                        <img id="posterPreview" class="poster" alt="">
                         <div class="filled-info">
                             <div class="filled-title" id="filledTitle"></div>
                             <div class="filled-meta" id="filledMeta"></div>
+                            <div class="filled-more" id="filledMore"></div>
                             <button type="button" class="btn btn-sm" id="showDetailsBtn">✏️ Поправить вручную</button>
                         </div>
                     </div>
@@ -208,7 +209,10 @@
             const poster = $('f_poster').value.trim();
             $('filledCard').hidden = !title;
             if (title) {
-                $('posterPreview').src = poster ? posterSrc(poster, 'small') : FALLBACK_POSTER;
+                const preview = $('posterPreview');
+                delete preview.dataset.stage;
+                preview.dataset.original = poster;
+                preview.src = poster ? posterSrc(poster, 'small') : FALLBACK_POSTER;
                 $('filledTitle').textContent = title;
                 $('filledMeta').textContent = [typeName($('f_type').value), $('f_year').value, checkedValues('cb-genre').slice(0, 3).join(', ')].filter(Boolean).join(' • ');
             }
@@ -273,7 +277,7 @@
                     const year = yearOf(r);
                     const dup = have.has(`${normalizeSearch(title)}|${year}`);
                     return `<button type="button" class="quick-option" data-idx="${idx}">
-                        <img src="https://image.tmdb.org/t/p/w92${escapeHtml(r.poster_path)}" alt="" loading="lazy">
+                        ${posterImg(`https://image.tmdb.org/t/p/w154${r.poster_path}`, { size: 'small' })}
                         <span class="quick-text">
                             <span class="quick-title">${escapeHtml(title)}</span>
                             <span class="quick-meta">${escapeHtml([year, typeName(tmdbType(r)), tmdbGenres(r).slice(0, 2).join(', ')].filter(Boolean).join(' • '))}</span>
@@ -283,10 +287,24 @@
                     </button>`;
                 }).join('') : '<div class="hint">Ничего не нашлось. Попробуйте оригинальное название или заполните вручную ниже.</div>';
             } catch (error) {
-                if (token === quickToken) $('quickResults').innerHTML = '<div class="hint">Поиск сейчас недоступен — заполните вручную ниже.</div>';
+                if (token === quickToken) $('quickResults').innerHTML = `<div class="hint">⚠️ ${escapeHtml(error.message)}<br>Можно заполнить вручную ниже.</div>`;
                 console.error(error);
             }
         }
+
+        // Что подставлено автоматически: при выборе другого варианта это можно заменить
+        let autoFilled = { desc: '', trailer: '' };
+
+        function setGenres(names) {
+            document.querySelectorAll('.cb-genre').forEach(cb => { cb.checked = false; });
+            names.forEach(g => {
+                const cb = [...document.querySelectorAll('.cb-genre')].find(c => c.value.toLowerCase() === g.toLowerCase());
+                if (cb) cb.checked = true;
+                else $('genresContainer').insertAdjacentHTML('beforeend', tagCheckbox(g, 'cb-genre', true));
+            });
+        }
+
+        const replaceable = (id, auto) => !$(id).value.trim() || $(id).value === auto;
 
         $('quickResults').addEventListener('click', async (e) => {
             const option = e.target.closest('.quick-option');
@@ -294,37 +312,46 @@
             const r = quickList[Number(option.dataset.idx)];
             if (!r) return;
             window.tgApp?.HapticFeedback?.impactOccurred('light');
+            const token = ++quickToken;
 
+            // Сразу — то, что уже есть в результате поиска
             $('f_type').value = tmdbType(r);
             $('f_title').value = r.title || r.name;
             if (yearOf(r)) $('f_year').value = yearOf(r);
             $('f_poster').value = `https://image.tmdb.org/t/p/w500${r.poster_path}`;
-            if (r.overview && !$('f_desc').value.trim()) $('f_desc').value = r.overview;
-
-            // Жанры: отмечаем найденные, новых добавляем в список
-            const genres = tmdbGenres(r);
-            genres.forEach(g => {
-                const cb = [...document.querySelectorAll('.cb-genre')].find(c => c.value.toLowerCase() === g.toLowerCase());
-                if (cb) cb.checked = true;
-                else $('genresContainer').insertAdjacentHTML('beforeend', tagCheckbox(g, 'cb-genre', true));
-            });
+            setGenres(tmdbGenres(r));
+            if (r.overview && replaceable('f_desc', autoFilled.desc)) $('f_desc').value = autoFilled.desc = r.overview;
 
             $('quickResults').innerHTML = '';
             $('quickSearch').value = '';
             syncPickers();
             showFilled(true);
+            $('filledMore').textContent = '⏳ Подтягиваю описание, актёров и трейлер…';
             $('ratingPicker').scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-            setStatus('trailerStatus', '⏳ Ищу трейлер…');
+            // Потом — подробности: режиссёр, актёры, страна, длительность, трейлер
             try {
-                const trailer = await findTrailerForTmdbItem(r.id, r.media_type === 'tv' ? 'tv' : 'movie');
-                if (trailer && !$('f_trailer').value.trim()) {
-                    $('f_trailer').value = `https://www.youtube.com/watch?v=${trailer.key}`;
+                const d = await tmdbDetails(r.id, r.media_type === 'tv' ? 'tv' : 'movie');
+                if (token !== quickToken) return;
+                $('f_type').value = d.type;
+                if (d.genres.length) setGenres(d.genres);
+                const desc = detailsDescription(d);
+                if (desc && replaceable('f_desc', autoFilled.desc)) $('f_desc').value = autoFilled.desc = desc;
+                if (d.trailer && replaceable('f_trailer', autoFilled.trailer)) {
+                    $('f_trailer').value = autoFilled.trailer = d.trailer;
                     setStatus('trailerStatus', '✅ Трейлер подтянут автоматически', true);
-                } else setStatus('trailerStatus', trailer ? '' : 'Трейлер не найден — можно вставить ссылку вручную.');
-            } catch {
-                setStatus('trailerStatus', '');
+                } else if (!d.trailer) setStatus('trailerStatus', 'Трейлер не найден — можно вставить ссылку вручную.');
+                $('filledMore').textContent = [
+                    d.originalTitle && d.originalTitle !== d.title ? d.originalTitle : '',
+                    d.directors.length ? `${d.type === 'series' ? 'Создатели' : 'Режиссёр'}: ${d.directors.join(', ')}` : '',
+                    [d.countries.join(', '), d.seasons, d.runtime].filter(Boolean).join(' · '),
+                    d.trailer ? '▶ Трейлер найден' : ''
+                ].filter(Boolean).join('\n');
+            } catch (error) {
+                console.error(error);
+                if (token === quickToken) $('filledMore').textContent = 'Подробности не загрузились — основное уже заполнено.';
             }
+            syncPickers();
             showFilled(true);
         });
 
@@ -498,6 +525,8 @@
             $('formTitle').textContent = 'Новая запись';
             $('quickFind').hidden = false;
             $('quickResults').innerHTML = '';
+            $('filledMore').textContent = '';
+            autoFilled = { desc: '', trailer: '' };
             syncPickers();
             updateReviewCount();
             showFilled(false);
@@ -539,6 +568,7 @@
             const title = $('f_title').value.trim();
             if (!title) { setStatus('posterStatus', 'Сначала введите название.'); return; }
             $('posterResults').innerHTML = '';
+            setStatus('posterStatus', '⏳ Ищу постеры…');
             try {
                 const results = await tmdbFind(title, $('f_type').value, $('f_year').value.trim());
                 if (!results.length) { setStatus('posterStatus', 'Ничего не найдено. Попробуйте оригинальное название или вставьте ссылку вручную.'); return; }
@@ -546,12 +576,13 @@
                 $('posterResults').innerHTML = results.slice(0, 6).map(r => {
                     const year = (r.release_date || r.first_air_date || '').slice(0, 4);
                     return `<button type="button" class="poster-option" data-id="${r.id}" data-type="${r.media_type}" data-path="${escapeHtml(r.poster_path)}" data-year="${escapeHtml(year)}">
-                        <img src="https://image.tmdb.org/t/p/w154${escapeHtml(r.poster_path)}" alt="" loading="lazy">
+                        ${posterImg(`https://image.tmdb.org/t/p/w154${r.poster_path}`, { size: 'small' })}
                         <span>${escapeHtml(r.title || r.name)} (${escapeHtml(year || '?')})<br>${r.media_type === 'tv' ? 'Сериал' : 'Фильм'}</span>
                     </button>`;
                 }).join('');
             } catch (error) {
-                showError('Ошибка поиска постера.', error);
+                console.error(error);
+                setStatus('posterStatus', `⚠️ ${error.message}`);
             }
         }));
 
@@ -582,12 +613,14 @@
         $('findTrailerBtn').addEventListener('click', (e) => withBusy(e.currentTarget, async () => {
             const title = $('f_title').value.trim();
             if (!title) { setStatus('trailerStatus', 'Сначала введите название.'); return; }
+            setStatus('trailerStatus', '⏳ Ищу трейлер…');
             try {
                 const url = await findTrailerByTitle(title, $('f_type').value, $('f_year').value.trim());
                 if (url) { $('f_trailer').value = url; setStatus('trailerStatus', '✅ Трейлер найден', true); }
                 else setStatus('trailerStatus', 'Трейлер не найден. Вставьте ссылку вручную.');
             } catch (error) {
-                showError('Ошибка поиска трейлера.', error);
+                console.error(error);
+                setStatus('trailerStatus', `⚠️ ${error.message}`);
             }
         }));
 
