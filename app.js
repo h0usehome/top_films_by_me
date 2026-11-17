@@ -1,8 +1,16 @@
 const VIEW_TITLES = {
     main: 'Главная', movies: 'Фильмы', series: 'Сериалы', cartoons: 'Мультфильмы',
     top100: 'ТОП 100', new: 'Новинки', recent: 'Недавно добавлено', rewatch: 'Пересматриваем любимое',
-    account: 'Аккаунт'
+    best: 'Лучшее', collections: 'Подборки', account: 'Аккаунт'
 };
+// Готовые подборки на вкладке «Подборки» (свои списки добавляются следом)
+const COLLECTIONS = [
+    ['top100', '🏆', 'Личный рейтинг по местам'],
+    ['best', '⭐', 'Оценки 9 и 10'],
+    ['new', '🆕', 'Вышли в этом году'],
+    ['recent', '🕒', 'Последние добавленные'],
+    ['rewatch', '🔁', 'То, к чему хочется вернуться']
+];
 // Описание и отзыв — самые тяжёлые поля, их грузим при открытии карточки
 const LIST_FIELDS = 'id,type,title,poster,year,rating,genres,toprank,customlists,created_at,rewatch,trailer';
 const PROFILE_FIELDS = 'id,handle,display_name,title,avatar_url';
@@ -123,6 +131,8 @@ function itemsForView(view, list) {
                 .slice(0, RECENT_LIMIT);
         case 'rewatch':
             return items.filter(i => i.rewatch === true);
+        case 'best':
+            return items.filter(i => Number(i.rating) >= 9).sort((a, b) => b.rating - a.rating);
         case 'list':
             return items.filter(i => splitList(i.customlists).includes(list));
         default:
@@ -298,6 +308,10 @@ function renderView() {
         renderAccount();
         return;
     }
+    if (state.view === 'collections' && !state.q && items.length) {
+        renderCollections();
+        return;
+    }
 
     if (!items.length) {
         grid.className = 'grid';
@@ -352,8 +366,7 @@ function updateChrome() {
     $('pageTitle').textContent = title;
     if (!state.film) document.title = isMain ? collectionTitle() : `${title} — ${collectionTitle()}`;
 
-    const plain = isMain || state.view === 'account';
-    $('filtersBar').hidden = plain || state.view === 'account';
+    $('filtersBar').hidden = isMain || ((state.view === 'account' || state.view === 'collections') && !state.q);
     $('backToMain').hidden = isMain;
     $('genreSelect').value = state.genre;
     $('sortSelect').value = state.sort;
@@ -364,7 +377,9 @@ function updateChrome() {
 
     const key = state.q ? null : viewKey(state);
     document.querySelectorAll('[data-key]').forEach(el => {
-        const active = el.dataset.key === key;
+        // Вкладка «Подборки» подсвечена и внутри подборки или своего списка
+        const also = (el.dataset.also || '').split(' ');
+        const active = el.dataset.key === key || Boolean(key && (also.includes(key) || (key.startsWith('list:') && also.includes('list'))));
         el.classList.toggle('active', active);
         if (active) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
     });
@@ -513,6 +528,45 @@ function renderGenreOptions() {
         .map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
 }
 
+// ---------- Подборки ----------
+
+function collectionTile(href, emoji, title, hint, list) {
+    const covers = list.slice(0, 3);
+    return `
+        <a class="coll-tile" href="${escapeHtml(href)}" data-nav>
+            <span class="coll-covers" aria-hidden="true">
+                ${covers.map((i, idx) => `<span class="coll-cover coll-cover-${idx}">${posterImg(i.poster, { size: 'small' })}</span>`).join('')
+                    || '<span class="coll-cover coll-cover-0 coll-empty"></span>'}
+            </span>
+            <span class="coll-text">
+                <span class="coll-title">${emoji} ${escapeHtml(title)}</span>
+                <span class="coll-hint">${escapeHtml(hint)}</span>
+            </span>
+            <span class="coll-count">${list.length}</span>
+        </a>`;
+}
+
+function renderCollections() {
+    const grid = $('contentGrid');
+    grid.className = 'collections';
+    const base = { ...stateFromUrl(''), u: state.u };
+    const ready = COLLECTIONS
+        .map(([view, emoji, hint]) => [view, emoji, hint, itemsForView(view)])
+        .filter(([, , , list]) => list.length)
+        .map(([view, emoji, hint, list]) => collectionTile(urlFor({ ...base, view }), emoji, VIEW_TITLES[view], hint, list));
+    const own = customLists().map(name => {
+        const list = itemsForView('list', name);
+        return collectionTile(urlFor({ ...base, view: 'list', list: name }), '📌', name, `${list.length} ${plural(list.length, 'запись', 'записи', 'записей')}`, list);
+    });
+    grid.innerHTML = `
+        <h2 class="coll-heading">Готовые подборки</h2>
+        <div class="coll-grid">${ready.join('') || '<div class="empty-state">Пока пусто.</div>'}</div>
+        <h2 class="coll-heading">${isMine() ? 'Мои списки' : 'Списки'}</h2>
+        <div class="coll-grid">${own.join('') || `<div class="empty-state">${isMine()
+            ? 'Своих списков пока нет. <br><a class="btn-pill" href="lists.html">🗂️ Создать список</a>'
+            : 'Своих списков пока нет.'}</div>`}</div>`;
+}
+
 // ---------- Аккаунт ----------
 
 function renderAccount() {
@@ -558,22 +612,65 @@ function renderAccount() {
             <a class="account-row" href="lists.html"><span>🗂️</span>Мои списки<i>›</i></a>
         </div>
 
-        <h3 class="account-heading">Настройки</h3>
+        <h3 class="account-heading">Профиль</h3>
+        <p class="account-note">Так вашу коллекцию видят друзья, когда вы делитесь ссылкой. Ниже — как это будет выглядеть.</p>
         <form class="account-card account-form" id="profileForm">
-            <label>Имя
-                <input name="display_name" maxlength="64" value="${escapeHtml(me.display_name || '')}" placeholder="Как вас подписать">
+            <div class="profile-preview" id="profilePreview">${profilePreviewHtml(me)}</div>
+            <label>Ваше имя
+                <input name="display_name" maxlength="64" value="${escapeHtml(me.display_name || '')}" placeholder="Например, Богдан">
+                <small>Подпись под коллекцией и в сообщениях «Поделиться»</small>
             </label>
             <label>Название коллекции
-                <input name="title" maxlength="64" value="${escapeHtml(me.title || '')}" placeholder="Моя коллекция">
+                <input name="title" maxlength="64" value="${escapeHtml(me.title || '')}" placeholder="${escapeHtml(defaultTitle(me))}">
+                <small>Заголовок коллекции. Пусто — «${escapeHtml(defaultTitle(me))}»</small>
             </label>
-            <label>Адрес коллекции
-                <span class="input-prefix"><b>?u=</b><input name="handle" maxlength="32" value="${escapeHtml(me.handle || '')}" pattern="[a-z0-9_]{3,32}" autocapitalize="off" spellcheck="false"></span>
-                <small class="muted">Латиница, цифры и «_», от 3 до 32 символов</small>
+            <label>Ссылка на коллекцию
+                <span class="input-prefix"><b>@</b><input name="handle" maxlength="32" value="${escapeHtml(me.handle || '')}" autocapitalize="off" autocomplete="off" spellcheck="false"></span>
+                <small>Короткое имя для ссылки: латиница, цифры и «_». Если сменить, старые ссылки перестанут открываться.</small>
             </label>
+            <div class="profile-link">
+                <span id="profileLink">${escapeHtml(profileLink(me.handle))}</span>
+                <button type="button" class="btn-pill btn-sm" data-action="copy-profile-link">Скопировать</button>
+            </div>
             <button type="submit" class="btn-pill btn-pill-primary">Сохранить</button>
             <div class="form-status" role="status"></div>
         </form>`;
 }
+
+function defaultTitle(p) {
+    return p.display_name ? `Коллекция ${p.display_name}` : 'Моя коллекция';
+}
+
+function profileLink(handle) {
+    if (SHARE_BASE) return `${SHARE_BASE.replace(/\/+$/, '')}/c/${handle}`;
+    return absoluteUrl({ ...stateFromUrl(''), u: handle });
+}
+
+function profilePreviewHtml(p) {
+    const count = isMine() ? items.length : 0;
+    return `
+        ${avatarHtml(p, 'avatar-lg')}
+        <div class="owner-banner-text">
+            <div class="owner-banner-title">${escapeHtml(p.title || defaultTitle(p))}</div>
+            <div class="owner-banner-sub">${escapeHtml(personName(p))} · ${count} ${plural(count, 'запись', 'записи', 'записей')}</div>
+        </div>`;
+}
+
+// Предпросмотр меняется прямо во время ввода
+document.addEventListener('input', (e) => {
+    const form = e.target.closest('#profileForm');
+    if (!form || !me) return;
+    if (e.target.name === 'handle') e.target.value = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const draft = {
+        ...me,
+        display_name: form.display_name.value.trim() || null,
+        title: form.title.value.trim() || null,
+        handle: form.handle.value || me.handle
+    };
+    $('profilePreview').innerHTML = profilePreviewHtml(draft);
+    $('profileLink').textContent = profileLink(draft.handle);
+    form.title.placeholder = defaultTitle(draft);
+});
 
 async function saveProfile(form) {
     const status = form.querySelector('.form-status');
@@ -995,6 +1092,7 @@ document.addEventListener('click', (e) => {
         case 'close-trailer': closeTrailer(); break;
         case 'search': $('header').classList.add('search-open'); $('search').focus(); break;
         case 'share-collection': shareCollection(); break;
+        case 'copy-profile-link': copyText($('profileLink').textContent); break;
         case 'reload': sessionStorage.removeItem('tg-auth'); location.reload(); break;
     }
 }, true);
