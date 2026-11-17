@@ -6,7 +6,7 @@
 //   APP_URL         — текст, адрес сайта (по умолчанию GitHub Pages)
 //
 // Маршруты:
-//   POST /webhook             — сюда Telegram присылает сообщения
+//   POST /webhook             — сюда Telegram присылает сообщения (подойдёт и любой другой путь)
 //   GET  /setup?key=SECRET    — один раз после деплоя: вебхук, кнопка меню, команды
 
 const DEFAULT_APP_URL = 'https://h0usehome.github.io/top_films_by_me/';
@@ -15,10 +15,11 @@ export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
 
-        if (request.method === 'POST' && url.pathname === '/webhook') {
-            // Telegram подписывает каждый запрос секретом, указанным в setWebhook
+        if (request.method === 'POST') {
+            // Telegram подписывает каждый запрос секретом, указанным в setWebhook.
+            // Если вебхук настроен не через /setup, секрета не будет — откройте /setup
             if (request.headers.get('X-Telegram-Bot-Api-Secret-Token') !== env.WEBHOOK_SECRET) {
-                return new Response('Forbidden', { status: 403 });
+                return new Response('Forbidden: откройте /setup?key=WEBHOOK_SECRET', { status: 403 });
             }
             const update = await request.json();
             // Отвечаем Telegram сразу, а сообщение отправляем в фоне
