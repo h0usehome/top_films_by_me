@@ -169,7 +169,7 @@ html.tg .header .back-btn { display: none; }
 
 .tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
-    display: grid; grid-template-columns: minmax(0, 1.28fr) 60px minmax(0, 0.72fr); align-items: stretch;
+    display: grid; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); align-items: stretch;
     height: calc(var(--tabbar-h) + var(--safe-bottom));
     padding: 0 calc(4px + var(--safe-right)) var(--safe-bottom) calc(4px + var(--safe-left));
     background: #121217;
@@ -182,8 +182,13 @@ html.tg .header .back-btn { display: none; }
     transition: color 0.15s;
 }
 /* Три вкладки слева стоят плотнее */
-.tab-group-left a { font-size: 10px; letter-spacing: -0.2px; }
-.tab-group-left a svg { width: 22px; height: 22px; }
+/* По три вкладки с каждой стороны — стоят плотно */
+.tab-group a { font-size: 10px; letter-spacing: -0.2px; }
+@media (max-width: 360px) {
+    .tabbar { grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr); padding-left: var(--safe-left); padding-right: var(--safe-right); }
+    .tab-group a { font-size: 9px; letter-spacing: -0.3px; }
+}
+.tab-group a svg { width: 22px; height: 22px; }
 .tab-group a.active { color: var(--text); }
 .tab-group a.active svg { stroke: var(--primary); }
 .tab-group a:active { color: var(--text); }
@@ -202,7 +207,8 @@ html.tg .header .back-btn { display: none; }
 .tab-home:not(.active) .tab-home-btn { background: linear-gradient(145deg, #2a2a32, #1c1c22); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); }
 .tab-home:not(.active) .tab-home-btn svg { stroke: var(--muted); }
 
-.tab-icon { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
+.tab-icon { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; }
+.tab-icon svg { width: 22px; height: 22px; }
 .tab-group a.active .avatar-tab { box-shadow: 0 0 0 2px var(--primary); }
 
 /* ---------- Контент ---------- */
@@ -283,7 +289,7 @@ html.tg .header .back-btn { display: none; }
     background: linear-gradient(145deg, #ff2a35, #8a050c); color: #fff; font-weight: 800;
 }
 .avatar-sm { width: 26px; height: 26px; font-size: 12px; }
-.avatar-tab { width: 24px; height: 24px; font-size: 11px; }
+.avatar-tab { width: 22px; height: 22px; font-size: 10px; }
 .avatar-lg { width: 52px; height: 52px; font-size: 22px; }
 .avatar-xl { width: 72px; height: 72px; font-size: 30px; }
 
