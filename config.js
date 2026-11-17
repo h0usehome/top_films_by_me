@@ -10,13 +10,13 @@ const DEFAULT_HANDLE = 'h0usehome';
 const TG_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/telegram`;
 
 // Адрес бота — для кнопки «Создать свою коллекцию» вне Telegram. Пусто — кнопка скрыта.
-// Пример: 'https://t.me/my_movies_bot'
-const TG_BOT_URL = '';
+// Пример: 'https://t.me/myH0usecollection_bot'
+const TG_BOT_URL = 'https://t.me/myH0usecollection_bot';
 
 // Адрес Cloudflare Worker из bot/ — даёт ссылкам красивое превью с постером
 // (https://<worker>/f/42). Пусто — делимся обычной ссылкой на сайт.
-// Пример: 'https://movies-bot.example.workers.dev'
-const SHARE_BASE = '';
+// Пример: 'https://mycollection.pinashin-official.workers.dev'
+const SHARE_BASE = 'https://mycollection.pinashin-official.workers.dev';
 
 // Клиент supabase-js нужен только админке; витрина обходится обычным fetch
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
