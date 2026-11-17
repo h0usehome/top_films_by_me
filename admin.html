@@ -27,14 +27,43 @@
             <div class="panel">
                 <h1 id="formTitle">Новая запись</h1>
                 <form class="form" id="adminForm" autocomplete="off">
-                    <div class="row stack">
-                        <select id="f_type" required aria-label="Тип">
+                    <div class="quick-find" id="quickFind">
+                        <div class="field-label">⚡ Быстрое заполнение</div>
+                        <input type="search" id="quickSearch" placeholder="Начните вводить название…" enterkeyhint="search" aria-label="Найти фильм, сериал или мультфильм">
+                        <div class="hint quick-hint">Выберите вариант — постер, год, жанры, описание и трейлер подставятся сами. Останется поставить оценку.</div>
+                        <div class="quick-results" id="quickResults"></div>
+                    </div>
+
+                    <div class="filled-card" id="filledCard" hidden>
+                        <img id="posterPreview" alt="">
+                        <div class="filled-info">
+                            <div class="filled-title" id="filledTitle"></div>
+                            <div class="filled-meta" id="filledMeta"></div>
+                            <button type="button" class="btn btn-sm" id="showDetailsBtn">✏️ Поправить вручную</button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="field-label">Тип</div>
+                        <div class="segmented" id="typeButtons" role="radiogroup" aria-label="Тип">
+                            <button type="button" data-type="movies" role="radio">🎬 Фильм</button>
+                            <button type="button" data-type="series" role="radio">📺 Сериал</button>
+                            <button type="button" data-type="cartoons" role="radio">🧸 Мульт</button>
+                        </div>
+                        <select id="f_type" hidden aria-hidden="true" tabindex="-1">
                             <option value="movies">Фильм</option>
                             <option value="series">Сериал</option>
                             <option value="cartoons">Мультфильм</option>
                         </select>
-                        <input type="text" id="f_title" placeholder="Название" required>
                     </div>
+
+                    <div>
+                        <div class="field-label">Моя оценка <span class="rating-word" id="ratingWord"></span></div>
+                        <div class="rating-picker" id="ratingPicker"></div>
+                    </div>
+
+                    <div class="details" id="detailsBlock">
+                    <input type="text" id="f_title" placeholder="Название" required>
 
                     <div>
                         <div class="row">
@@ -53,11 +82,10 @@
                         <div class="status" id="trailerStatus"></div>
                     </div>
 
-                    <div class="row">
-                        <input type="number" id="f_year" placeholder="Год" min="1880" max="2100" inputmode="numeric" required>
-                        <select id="f_rating" required aria-label="Моя оценка">
-                            <option value="" disabled selected>Моя оценка</option>
-                        </select>
+                    <input type="number" id="f_year" placeholder="Год" min="1880" max="2100" inputmode="numeric" required>
+                    <select id="f_rating" hidden aria-hidden="true" tabindex="-1">
+                        <option value="" selected></option>
+                    </select>
                     </div>
 
                     <div class="tag-group">
@@ -90,10 +118,11 @@
                             <label for="f_review">Мой отзыв</label>
                             <button type="button" class="btn btn-sm" data-insert-image="f_review">🖼️ Картинка</button>
                         </div>
-                        <textarea id="f_review"></textarea>
+                        <textarea id="f_review" placeholder="Что зацепило, кому советуете, с чем сравнить… Короткая цитата попадёт в сообщение «Поделиться»."></textarea>
+                        <div class="hint char-count" id="reviewCount"></div>
                     </div>
 
-                    <div class="row stack">
+                    <div class="row stack form-actions">
                         <button type="button" class="btn" id="btnCancel" hidden>Отменить</button>
                         <button type="button" class="btn btn-danger" id="btnDelete" hidden>🗑️ Удалить</button>
                         <button type="submit" class="btn btn-primary" id="btnSubmit">Сохранить</button>
@@ -129,7 +158,175 @@
         let sortable = null;
 
         $('f_rating').insertAdjacentHTML('beforeend',
-            [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0].map(n => `<option value="${n}">${'★'.repeat(n)}${'☆'.repeat(10 - n)} (${n})</option>`).join(''));
+            [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0].map(n => `<option value="${n}">${n}</option>`).join(''));
+
+        // ---------- Тип и оценка нажатием ----------
+
+        const RATING_WORDS = ['Не оценивал', 'Ужасно', 'Очень плохо', 'Плохо', 'Слабо', 'Средне', 'Неплохо', 'Хорошо', 'Отлично', 'Великолепно', 'Шедевр'];
+        $('ratingPicker').innerHTML = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            .map(n => `<button type="button" data-rating="${n}" aria-label="Оценка ${n}">${n}</button>`).join('');
+
+        function syncPickers() {
+            const type = $('f_type').value;
+            document.querySelectorAll('#typeButtons [data-type]').forEach(b => {
+                b.classList.toggle('active', b.dataset.type === type);
+                b.setAttribute('aria-checked', b.dataset.type === type);
+            });
+            const rating = $('f_rating').value === '' ? null : Number($('f_rating').value);
+            document.querySelectorAll('#ratingPicker [data-rating]').forEach(b => {
+                const n = Number(b.dataset.rating);
+                b.classList.toggle('on', rating !== null && n <= rating);
+                b.classList.toggle('active', n === rating);
+            });
+            $('ratingWord').textContent = rating === null ? '' : `${rating} — ${RATING_WORDS[rating]}`;
+            $('ratingPicker').dataset.level = rating === null ? '' : rating >= 8 ? 'high' : rating >= 5 ? 'mid' : 'low';
+        }
+        $('typeButtons').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-type]');
+            if (!b) return;
+            $('f_type').value = b.dataset.type;
+            syncPickers();
+        });
+        $('ratingPicker').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-rating]');
+            if (!b) return;
+            $('f_rating').value = $('f_rating').value === b.dataset.rating ? '' : b.dataset.rating;
+            window.tgApp?.HapticFeedback?.selectionChanged();
+            syncPickers();
+        });
+        syncPickers();
+
+        function updateReviewCount() {
+            const n = $('f_review').value.length;
+            $('reviewCount').textContent = n ? `${n} ${n > 280 ? '· в сообщение «Поделиться» попадут первые ~280 символов' : ''}` : '';
+        }
+        $('f_review').addEventListener('input', updateReviewCount);
+
+        // Карточка-итог после автозаполнения: детали можно раскрыть и поправить
+        function showFilled(collapse) {
+            const title = $('f_title').value.trim();
+            const poster = $('f_poster').value.trim();
+            $('filledCard').hidden = !title;
+            if (title) {
+                $('posterPreview').src = poster ? posterSrc(poster, 'small') : FALLBACK_POSTER;
+                $('filledTitle').textContent = title;
+                $('filledMeta').textContent = [typeName($('f_type').value), $('f_year').value, checkedValues('cb-genre').slice(0, 3).join(', ')].filter(Boolean).join(' • ');
+            }
+            // Сворачиваем, только если обязательные поля заполнены, иначе браузер не даст сохранить
+            const complete = title && poster && $('f_year').value;
+            $('detailsBlock').classList.toggle('collapsed', Boolean(collapse && complete));
+        }
+        $('showDetailsBtn').addEventListener('click', () => {
+            $('detailsBlock').classList.remove('collapsed');
+            $('f_title').focus();
+        });
+
+        // ---------- Быстрое заполнение из TMDB ----------
+
+        // Жанры TMDB → наши названия
+        const TMDB_GENRES = {
+            28: ['Боевик'], 12: ['Приключения'], 35: ['Комедия'], 80: ['Криминал'], 99: ['Документальный'],
+            18: ['Драма'], 10751: ['Семейный'], 14: ['Фэнтези'], 36: ['История'], 27: ['Ужасы'], 10402: ['Мюзикл'],
+            9648: ['Детектив'], 10749: ['Мелодрама'], 878: ['Фантастика'], 53: ['Триллер'], 10752: ['Военный'],
+            37: ['Вестерн'], 10759: ['Боевик', 'Приключения'], 10765: ['Фантастика', 'Фэнтези'], 10768: ['Военный'],
+            10762: ['Детский'], 10764: ['Реалити']
+        };
+        const ANIMATION = 16;
+
+        function tmdbGenres(r) {
+            const ids = r.genre_ids || [];
+            const names = new Set(ids.flatMap(id => TMDB_GENRES[id] || []));
+            if (ids.includes(ANIMATION) && r.original_language === 'ja') names.add('Аниме');
+            return [...names];
+        }
+
+        function tmdbType(r) {
+            if ((r.genre_ids || []).includes(ANIMATION)) return 'cartoons';
+            return r.media_type === 'tv' ? 'series' : 'movies';
+        }
+
+        const yearOf = (r) => (r.release_date || r.first_air_date || '').slice(0, 4);
+        let quickTimer, quickToken = 0, quickList = [];
+
+        $('quickSearch').addEventListener('input', (e) => {
+            clearTimeout(quickTimer);
+            const q = e.target.value.trim();
+            if (q.length < 2) { $('quickResults').innerHTML = ''; return; }
+            quickTimer = setTimeout(() => quickFind(q), 350);
+        });
+        $('quickSearch').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); clearTimeout(quickTimer); quickFind(e.target.value.trim()); }
+        });
+
+        async function quickFind(q) {
+            if (!q) return;
+            const token = ++quickToken;
+            $('quickResults').innerHTML = '<div class="hint">⏳ Ищу…</div>';
+            try {
+                let results = await tmdbSearchMulti(q, 'ru-RU');
+                if (!results.length) results = await tmdbSearchMulti(q, 'en-US');
+                if (token !== quickToken) return;
+                quickList = results.slice(0, 8);
+                const have = new Set(items.map(i => `${normalizeSearch(i.title)}|${i.year}`));
+                $('quickResults').innerHTML = quickList.length ? quickList.map((r, idx) => {
+                    const title = r.title || r.name;
+                    const year = yearOf(r);
+                    const dup = have.has(`${normalizeSearch(title)}|${year}`);
+                    return `<button type="button" class="quick-option" data-idx="${idx}">
+                        <img src="https://image.tmdb.org/t/p/w92${escapeHtml(r.poster_path)}" alt="" loading="lazy">
+                        <span class="quick-text">
+                            <span class="quick-title">${escapeHtml(title)}</span>
+                            <span class="quick-meta">${escapeHtml([year, typeName(tmdbType(r)), tmdbGenres(r).slice(0, 2).join(', ')].filter(Boolean).join(' • '))}</span>
+                            ${r.original_title && r.original_title !== title || r.original_name && r.original_name !== title ? `<span class="quick-orig">${escapeHtml(r.original_title || r.original_name)}</span>` : ''}
+                        </span>
+                        ${dup ? '<span class="quick-dup">уже есть</span>' : ''}
+                    </button>`;
+                }).join('') : '<div class="hint">Ничего не нашлось. Попробуйте оригинальное название или заполните вручную ниже.</div>';
+            } catch (error) {
+                if (token === quickToken) $('quickResults').innerHTML = '<div class="hint">Поиск сейчас недоступен — заполните вручную ниже.</div>';
+                console.error(error);
+            }
+        }
+
+        $('quickResults').addEventListener('click', async (e) => {
+            const option = e.target.closest('.quick-option');
+            if (!option) return;
+            const r = quickList[Number(option.dataset.idx)];
+            if (!r) return;
+            window.tgApp?.HapticFeedback?.impactOccurred('light');
+
+            $('f_type').value = tmdbType(r);
+            $('f_title').value = r.title || r.name;
+            if (yearOf(r)) $('f_year').value = yearOf(r);
+            $('f_poster').value = `https://image.tmdb.org/t/p/w500${r.poster_path}`;
+            if (r.overview && !$('f_desc').value.trim()) $('f_desc').value = r.overview;
+
+            // Жанры: отмечаем найденные, новых добавляем в список
+            const genres = tmdbGenres(r);
+            genres.forEach(g => {
+                const cb = [...document.querySelectorAll('.cb-genre')].find(c => c.value.toLowerCase() === g.toLowerCase());
+                if (cb) cb.checked = true;
+                else $('genresContainer').insertAdjacentHTML('beforeend', tagCheckbox(g, 'cb-genre', true));
+            });
+
+            $('quickResults').innerHTML = '';
+            $('quickSearch').value = '';
+            syncPickers();
+            showFilled(true);
+            $('ratingPicker').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            setStatus('trailerStatus', '⏳ Ищу трейлер…');
+            try {
+                const trailer = await findTrailerForTmdbItem(r.id, r.media_type === 'tv' ? 'tv' : 'movie');
+                if (trailer && !$('f_trailer').value.trim()) {
+                    $('f_trailer').value = `https://www.youtube.com/watch?v=${trailer.key}`;
+                    setStatus('trailerStatus', '✅ Трейлер подтянут автоматически', true);
+                } else setStatus('trailerStatus', trailer ? '' : 'Трейлер не найден — можно вставить ссылку вручную.');
+            } catch {
+                setStatus('trailerStatus', '');
+            }
+            showFilled(true);
+        });
 
         async function load() {
             try {
@@ -210,6 +407,13 @@
 
         $('adminForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if ($('f_rating').value === '') {
+                $('ratingPicker').classList.add('shake');
+                setTimeout(() => $('ratingPicker').classList.remove('shake'), 500);
+                $('ratingPicker').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                appAlert('Поставьте оценку от 1 до 10');
+                return;
+            }
             const btn = $('btnSubmit');
             btn.disabled = true;
             btn.textContent = 'Сохранение…';
@@ -276,6 +480,10 @@
             $('f_inTop100').checked = it.toprank > 0;
             $('f_rewatch').checked = Boolean(it.rewatch);
             renderTags();
+            syncPickers();
+            updateReviewCount();
+            showFilled(false);
+            $('quickFind').hidden = true;
             $('formTitle').textContent = 'Редактирование';
             $('btnCancel').hidden = false;
             $('btnDelete').hidden = false;
@@ -288,6 +496,11 @@
             $('adminForm').reset();
             document.querySelectorAll('.cb-genre, .cb-list').forEach(cb => { cb.checked = false; });
             $('formTitle').textContent = 'Новая запись';
+            $('quickFind').hidden = false;
+            $('quickResults').innerHTML = '';
+            syncPickers();
+            updateReviewCount();
+            showFilled(false);
             $('btnCancel').hidden = true;
             $('btnDelete').hidden = true;
             $('posterResults').innerHTML = '';
@@ -349,6 +562,7 @@
             if (/^\d{4}$/.test(option.dataset.year)) $('f_year').value = option.dataset.year;
             $('posterResults').innerHTML = '';
             setStatus('posterStatus', '✅ Постер выбран', true);
+            showFilled(false);
 
             if ($('f_trailer').value.trim()) return;
             setStatus('trailerStatus', '⏳ Ищу трейлер…');
