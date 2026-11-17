@@ -142,9 +142,16 @@ async function startAuth() {
         console.error(error);
     }
 
+    // В Telegram чужую сохранённую сессию не используем: хранилище общее для всех аккаунтов устройства
+    if (inTelegram()) {
+        await db.auth.signOut({ scope: 'local' });
+        showGate(`Не получилось войти через Telegram. ${window.tgAuthError || ''}`);
+        return;
+    }
+
     const { data } = await db.auth.getSession();
     if (data.session) signedIn(data.session.user);
-    else showGate(inTelegram() ? `Не получилось войти через Telegram. ${window.tgAuthError || ''}` : '');
+    else showGate();
 
     db.auth.onAuthStateChange((event, session) => {
         if (session) return;

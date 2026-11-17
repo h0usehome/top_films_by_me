@@ -594,7 +594,10 @@ async function saveProfile(form) {
         const oldHandle = me.handle;
         me = row;
         if (owner?.id === me.id) owner = row;
-        try { localStorage.setItem('tg-profile', JSON.stringify(row)); } catch { /* приватный режим */ }
+        try {
+            const tg = await window.tgAuth;
+            if (tg?.tg_user_id) localStorage.setItem(`tg-profile:${tg.tg_user_id}`, JSON.stringify(row));
+        } catch { /* приватный режим */ }
         if (state.u === oldHandle) state.u = row.handle;
         renderOwner();
         updateChrome();
