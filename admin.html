@@ -11,12 +11,13 @@
 <body>
     <header class="admin-header">
         <div class="container">
-            <a class="admin-brand" href="index.html">MY<span>COLLECTION</span></a>
+            <a class="admin-brand" href="index.html?view=account">MY<span>COLLECTION</span></a>
             <nav class="admin-nav" aria-label="Разделы админки">
-                <a href="admin.html">➕ Добавление</a>
-                <a href="admin.html#top100">🏆 ТОП-100</a>
-                <a href="database.html">📋 База</a>
-                <a href="lists.html">🗂️ Списки</a>
+                <a href="admin.html"><span aria-hidden="true">➕</span>Добавить</a>
+                <a href="admin.html#top100"><span aria-hidden="true">🏆</span>ТОП-100</a>
+                <a href="database.html"><span aria-hidden="true">📋</span>База</a>
+                <a href="lists.html"><span aria-hidden="true">🗂️</span>Списки</a>
+                <a class="nav-back" href="index.html?view=account"><span aria-hidden="true">🍿</span>Коллекция</a>
             </nav>
         </div>
     </header>
@@ -114,6 +115,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js"></script>
     <script src="config.js"></script>
+    <script src="tg.js"></script>
     <script src="common.js"></script>
     <script src="admin.js"></script>
     <script src="tmdb-helper.js"></script>
@@ -132,8 +134,8 @@
         async function load() {
             try {
                 const [data, lists] = await Promise.all([
-                    run(db.from('collection').select('*').order('id', { ascending: false })),
-                    run(db.from('lists').select('name'))
+                    run(db.from('collection').select('*').eq('owner_id', userId).order('id', { ascending: false })),
+                    run(db.from('lists').select('name').eq('owner_id', userId))
                 ]);
                 items = data;
                 const names = new Set(lists.map(l => l.name));
@@ -235,13 +237,20 @@
             };
 
             try {
+                const params = new URLSearchParams(location.search);
                 if (editingItem) await run(db.from('collection').update(payload).eq('id', editingItem.id));
                 else await run(db.from('collection').insert([payload]));
 
-                if (editingItem && new URLSearchParams(location.search).has('edit')) {
+                // Редактировали из карточки на витрине — возвращаемся к ней
+                if (editingItem && params.get('back') === 'app') {
+                    location.href = `index.html?film=${encodeURIComponent(editingItem.id)}`;
+                    return;
+                }
+                if (editingItem && params.has('edit')) {
                     location.href = 'database.html';
                     return;
                 }
+                toastOk(editingItem ? 'Сохранено' : `«${payload.title}» добавлен в коллекцию`);
                 resetForm();
                 await load();
             } catch (error) {
@@ -289,7 +298,7 @@
         $('btnCancel').addEventListener('click', resetForm);
 
         $('btnDelete').addEventListener('click', async () => {
-            if (!editingItem || !confirm(`Удалить «${editingItem.title}»?`)) return;
+            if (!editingItem || !await appConfirm(`Удалить «${editingItem.title}»?`)) return;
             try {
                 await run(db.from('collection').delete().eq('id', editingItem.id));
                 resetForm();
@@ -414,7 +423,7 @@
             }
         });
 
-        load();
+        authReady.then(load);
     </script>
 </body>
 </html>

@@ -1,14 +1,16 @@
 :root {
-    --bg: #141414;
-    --surface: #1f1f1f;
-    --surface-2: #262626;
+    --bg: #0f0f13;
+    --surface: #18181d;
+    --surface-2: #24242b;
     --border: rgba(255, 255, 255, 0.1);
     --primary: #e50914;
     --success: #2ecc71;
     --text: #fff;
     --muted: #8a8a8a;
-    --safe-top: env(safe-area-inset-top, 0px);
-    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --nav-h: 0px;
+    /* Внутри Telegram отступы приходят в переменных --tg-*-safe-area-inset-* */
+    --safe-top: calc(max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px));
+    --safe-bottom: calc(max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px)) + var(--tg-content-safe-area-inset-bottom, 0px));
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -17,8 +19,10 @@ body {
     min-height: 100vh;
     background: var(--bg); color: var(--text);
     font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif; line-height: 1.4;
-    padding-bottom: calc(24px + var(--safe-bottom));
+    padding-bottom: calc(24px + var(--nav-h) + var(--safe-bottom));
+    -webkit-tap-highlight-color: transparent;
 }
+html.tg, html.tg body { overscroll-behavior: none; }
 a { color: inherit; text-decoration: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 img { display: block; }
@@ -40,6 +44,7 @@ img { display: block; }
 .admin-brand span { color: var(--primary); }
 .admin-nav { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-left: auto; padding: 8px 0; }
 .admin-nav::-webkit-scrollbar { display: none; }
+.admin-nav a span { margin-right: 6px; }
 .admin-nav a {
     flex: 0 0 auto; padding: 8px 14px; border-radius: 8px;
     color: var(--muted); font-weight: 600; font-size: 14px; white-space: nowrap;
@@ -131,7 +136,7 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--primary)
 }
 .item .poster { flex: 0 0 auto; width: 48px; height: 72px; object-fit: cover; border-radius: 6px; background: #000; }
 .item-info { flex: 1; min-width: 0; }
-.item-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-title { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.item-title:hover { color: var(--primary); }
 .item-meta { margin-top: 3px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .item-actions { display: flex; gap: 8px; flex: 0 0 auto; }
@@ -171,13 +176,47 @@ a.item-title:hover { color: var(--primary); }
 .auth-error { min-height: 18px; color: #ff4d4d; font-size: 13px; }
 .auth-gate a { text-align: center; color: var(--muted); font-size: 13px; }
 .logout { flex: 0 0 auto; margin-left: 8px; }
+.nav-back { display: none !important; }
+/* В Telegram «Коллекция» в панели заменяет ссылку-логотип; «Назад» — системная кнопка */
+@media (max-width: 760px) { .nav-back { display: flex !important; } }
 
-/* ---------- Телефон ---------- */
+/* ---------- Уведомление ---------- */
+
+.admin-toast {
+    position: fixed; left: 50%; z-index: 1100;
+    bottom: calc(20px + var(--nav-h) + var(--safe-bottom));
+    padding: 10px 18px; border-radius: 20px;
+    background: rgba(40, 40, 48, 0.97); border: 1px solid var(--border);
+    font-size: 14px; font-weight: 600; max-width: calc(100% - 32px); text-align: center;
+    opacity: 0; pointer-events: none;
+    transform: translate(-50%, 10px); transition: opacity 0.2s, transform 0.2s;
+}
+.admin-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Телефон: разделы — в нижней панели, как в приложении ---------- */
 
 @media (max-width: 760px) {
-    .admin-header .container { flex-wrap: wrap; gap: 0; padding-top: 6px; }
+    :root { --nav-h: 60px; }
+    .admin-header .container { min-height: 52px; }
     .admin-brand { margin-right: auto; }
-    .admin-nav { order: 3; width: 100%; margin-left: 0; }
+    .admin-nav {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+        display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+        height: calc(var(--nav-h) + var(--safe-bottom)); margin: 0;
+        padding: 0 0 var(--safe-bottom);
+        background: #121217; border-top: 1px solid var(--border);
+        overflow: visible;
+    }
+    .admin-nav a {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+        padding: 0; border: 0; border-radius: 0;
+        font-size: 11px; color: var(--muted);
+    }
+    .admin-nav a span { margin: 0; font-size: 20px; line-height: 1; filter: grayscale(1) opacity(0.7); }
+    .admin-nav a.active { background: none; border: 0; color: var(--text); }
+    .admin-nav a.active span { filter: none; }
+    .admin-nav a:active { background: rgba(255, 255, 255, 0.05); }
+    h1 { font-size: 22px; }
     .panel { padding: 16px; }
     .layout { grid-template-columns: 1fr; }
     .row.stack { flex-direction: column; }
