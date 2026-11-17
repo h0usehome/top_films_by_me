@@ -11,12 +11,13 @@
 <body>
     <header class="admin-header">
         <div class="container wide">
-            <a class="admin-brand" href="index.html">MY<span>COLLECTION</span></a>
+            <a class="admin-brand" href="index.html?view=account">MY<span>COLLECTION</span></a>
             <nav class="admin-nav" aria-label="Разделы админки">
-                <a href="admin.html">➕ Добавление</a>
-                <a href="admin.html#top100">🏆 ТОП-100</a>
-                <a href="database.html">📋 База</a>
-                <a href="lists.html">🗂️ Списки</a>
+                <a href="admin.html"><span aria-hidden="true">➕</span>Добавить</a>
+                <a href="admin.html#top100"><span aria-hidden="true">🏆</span>ТОП-100</a>
+                <a href="database.html"><span aria-hidden="true">📋</span>База</a>
+                <a href="lists.html"><span aria-hidden="true">🗂️</span>Списки</a>
+                <a class="nav-back" href="index.html?view=account"><span aria-hidden="true">🍿</span>Коллекция</a>
             </nav>
         </div>
     </header>
@@ -40,6 +41,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
+    <script src="tg.js"></script>
     <script src="common.js"></script>
     <script src="admin.js"></script>
     <script>
@@ -51,8 +53,8 @@
         async function load() {
             try {
                 const [data, rows] = await Promise.all([
-                    run(db.from('collection').select('id,type,title,poster,year,rating,customlists')),
-                    run(db.from('lists').select('name'))
+                    run(db.from('collection').select('id,type,title,poster,year,rating,customlists').eq('owner_id', userId)),
+                    run(db.from('lists').select('name').eq('owner_id', userId))
                 ]);
                 items = data;
                 // Списки из таблицы lists плюс те, что встречаются только у фильмов
@@ -138,7 +140,7 @@
             e.preventDefault();
             const name = $('newListInput').value.trim();
             if (!name) return;
-            if (exists(name)) { alert('Такой список уже есть.'); return; }
+            if (exists(name)) { appAlert('Такой список уже есть.'); return; }
             try {
                 await run(db.from('lists').insert([{ name }]));
                 $('newListInput').value = '';
@@ -176,7 +178,7 @@
             e.preventDefault();
             const newName = $('renameInput').value.trim();
             if (!newName || newName === selected) { renderContent(); return; }
-            if (exists(newName)) { alert('Такой список уже есть.'); return; }
+            if (exists(newName)) { appAlert('Такой список уже есть.'); return; }
             try {
                 await run(db.rpc('rename_list', { old_name: selected, new_name: newName }));
                 selected = newName;
@@ -204,7 +206,7 @@
                 const msg = count
                     ? `Удалить список «${selected}»? Он пропадёт у ${count} записей, сами записи останутся.`
                     : `Удалить список «${selected}»?`;
-                if (!confirm(msg)) return;
+                if (!await appConfirm(msg)) return;
                 try {
                     await run(db.rpc('delete_list', { list_name: selected }));
                     selected = null;
@@ -215,7 +217,7 @@
             }
         });
 
-        load();
+        authReady.then(load);
     </script>
 </body>
 </html>
