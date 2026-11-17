@@ -2,331 +2,161 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Общая база — Админ-панель</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23141414%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23e50914%22%20stroke-width%3D%224%22/%3E%0A%3Cg%20fill%3D%22%23e50914%22%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%224%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2229%22%20y%3D%2250%22%20width%3D%226%22%20height%3D%2210%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%224%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3Crect%20x%3D%2250%22%20y%3D%2229%22%20width%3D%2210%22%20height%3D%226%22%20rx%3D%222%22%20transform%3D%22rotate%2845%2032%2032%29%22/%3E%0A%3C/g%3E%0A%3C/svg%3E">
-    <style>
-        :root {
-            --bg: #141414; --surface: #1f1f1f;
-            --primary: #e50914; --text: #ffffff;
-            --muted: #808080;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        body { background: var(--bg); color: var(--text); padding: 40px 20px; }
-        .container { max-width: 1100px; margin: 0 auto; }
-        h1 { text-align: center; margin-bottom: 20px; font-weight: 800; letter-spacing: 1px; }
-
-        /* Навигация назад в админку */
-        .admin-nav { display: flex; gap: 15px; margin-bottom: 30px; justify-content: center; flex-wrap: wrap; }
-        .nav-tab { padding: 12px 25px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 16px; transition: 0.3s; border: 1px solid transparent; text-decoration: none; color: inherit; display: inline-block; }
-        .nav-tab.active { background: rgba(229, 9, 20, 0.1); border-color: var(--primary); color: var(--text); }
-        .nav-tab:hover:not(.active) { background: rgba(255,255,255,0.1); }
-
-        .panel { background: var(--surface); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 30px; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-
-        /* Панель инструментов: поиск + сортировка */
-        .toolbar { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
-        .toolbar input, .toolbar select {
-            padding: 12px 14px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px; color: #fff; font-size: 14px; outline: none;
-        }
-        .toolbar input:focus, .toolbar select:focus { border-color: var(--primary); }
-        .toolbar input#searchInput { flex: 1; min-width: 200px; }
-        .result-count { color: var(--muted); font-size: 13px; margin-bottom: 15px; }
-
-        /* Список базы данных */
-        .item { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; gap: 10px; }
-        .item-info { display: flex; gap: 15px; align-items: center; }
-
-        /* Постер + полупрозрачная кнопка "Изменить" при наведении */
-        .poster-wrap { position: relative; width: 92px; height: 132px; flex-shrink: 0; border-radius: 6px; overflow: hidden; background: #000; }
-        .poster-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .poster-edit-overlay {
-            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-            text-align: center; padding: 8px; gap: 4px;
-            background: rgba(0,0,0,0.6); color: #fff; text-decoration: none; font-weight: 700; font-size: 13px;
-            opacity: 0; transition: opacity 0.2s; cursor: pointer;
-        }
-        .poster-wrap:hover .poster-edit-overlay,
-        .poster-wrap:focus-within .poster-edit-overlay { opacity: 1; }
-
-        .item-title { font-weight: 600; font-size: 16px; margin-bottom: 4px; }
-        .item-meta { color: var(--muted); font-size: 13px; line-height: 1.5; }
-
-        .actions { display: flex; gap: 10px; }
-        .actions button, .actions a {
-            padding: 8px 12px; font-size: 13px; border-radius: 6px; display: flex; align-items: center; gap: 6px;
-            width: auto; border: none; cursor: pointer; text-decoration: none; font-weight: 600;
-        }
-        .btn-del { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
-        .btn-del:hover { background: var(--primary); color: white; }
-
-        @media (max-width: 600px) {
-            /* На мобилке ховера нет — показываем кнопку по нажатию на постер (touch), чуть меньше размер */
-            .poster-wrap { width: 76px; height: 110px; }
-            .poster-edit-overlay { opacity: 0; }
-            .poster-wrap:active .poster-edit-overlay { opacity: 1; }
-        }
-
-        .empty-state { text-align: center; color: var(--muted); padding: 30px 0; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="robots" content="noindex">
+    <title>Админка — база</title>
+    <link rel="icon" type="image/svg+xml" href="favicon-admin.svg">
+    <link rel="stylesheet" href="admin.css">
 </head>
 <body>
-    <div class="container">
-        <h1>📋 Общая база</h1>
-
-        <div class="admin-nav">
-            <a class="nav-tab" href="admin.html">➕ Добавление / Редактирование</a>
-            <a class="nav-tab active" href="database.html">📋 Общая база</a>
-            <a class="nav-tab" href="lists.html">🗂️ Мои списки</a>
+    <header class="admin-header">
+        <div class="container">
+            <a class="admin-brand" href="index.html">MY<span>COLLECTION</span></a>
+            <nav class="admin-nav" aria-label="Разделы админки">
+                <a href="admin.html">➕ Добавление</a>
+                <a href="admin.html#top100">🏆 ТОП-100</a>
+                <a href="database.html">📋 База</a>
+                <a href="lists.html">🗂️ Списки</a>
+            </nav>
         </div>
+    </header>
 
-        <div class="panel" id="autoFillPanel">
+    <main class="container">
+        <div class="panel">
             <h2>🪄 Автопоиск трейлеров</h2>
-            <p style="color: var(--muted); font-size: 14px; margin: 10px 0 15px;">Найдёт YouTube-трейлеры для фильмов, у которых поле «Ссылка на трейлер» пустое, и автоматически сохранит их в базу.</p>
-            <button type="button" id="scanBtn" onclick="scanMissingTrailers()" style="background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-weight: 700; cursor: pointer; font-size: 14px;">🔍 Найти трейлеры для фильмов без трейлера</button>
-            <div id="scanProgress" style="color: var(--muted); font-size: 13px; margin-top: 12px;"></div>
-            <div id="scanResults" style="margin-top: 15px;"></div>
+            <p class="hint">Найдёт трейлеры на YouTube для записей без трейлера и сразу сохранит их.</p>
+            <button type="button" class="btn btn-primary" id="scanBtn">🔍 Найти недостающие трейлеры</button>
+            <p class="status" id="scanProgress"></p>
+            <div id="scanResults"></div>
         </div>
 
         <div class="panel">
             <div class="toolbar">
-                <input type="text" id="searchInput" placeholder="🔍 Поиск по названию..." oninput="applyFilters()">
-                <select id="typeFilter" onchange="applyFilters()">
+                <input type="search" id="searchInput" placeholder="🔍 Поиск по названию" aria-label="Поиск по названию">
+                <select id="typeFilter" aria-label="Тип">
                     <option value="all">Все типы</option>
                     <option value="movies">Фильмы</option>
                     <option value="series">Сериалы</option>
                     <option value="cartoons">Мультфильмы</option>
                 </select>
-                <select id="sortSelect" onchange="applyFilters()">
-                    <option value="default">Сортировка: по умолчанию</option>
-                    <option value="rating_desc">Рейтинг: сначала высокий</option>
-                    <option value="rating_asc">Рейтинг: сначала низкий</option>
-                    <option value="year_desc">Год выхода: сначала новые</option>
-                    <option value="year_asc">Год выхода: сначала старые</option>
+                <select id="sortSelect" aria-label="Сортировка">
+                    <option value="default">Сначала новые записи</option>
+                    <option value="title">По названию</option>
+                    <option value="rating_desc">Рейтинг ↓</option>
+                    <option value="rating_asc">Рейтинг ↑</option>
+                    <option value="year_desc">Год ↓</option>
+                    <option value="year_asc">Год ↑</option>
                 </select>
             </div>
-            <div class="result-count" id="resultCount"></div>
-            <div id="listContainer">Загрузка...</div>
+            <p class="hint" id="resultCount"></p>
+            <div id="listContainer"><div class="empty-state">Загрузка…</div></div>
         </div>
-    </div>
+    </main>
 
-    <!-- Библиотека Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Общие для всех страниц админки: ключи и функции поиска постеров -->
     <script src="config.js"></script>
-    <!-- Вход в админку: без него изменения в базу не пройдут (RLS) -->
-    <script src="auth-guard.js"></script>
+    <script src="common.js"></script>
+    <script src="admin.js"></script>
     <script src="tmdb-helper.js"></script>
-    
-    <!-- Подключаем наши общие функции для картинок -->
-    <script src="poster-helpers.js"></script>
-
     <script>
-        // SUPABASE_URL, SUPABASE_KEY, supabaseClient и TMDB_API_KEY
-        // теперь подключаются из общего config.js (см. <head> выше)
-
-        let currentData = [];
+        const $ = (id) => document.getElementById(id);
+        let items = [];
 
         async function load() {
             try {
-                const { data, error } = await supabaseClient
-                    .from('collection')
-                    .select('*')
-                    .order('id', { ascending: false });
-
-                if (error) throw error;
-                currentData = data || [];
-                applyFilters();
+                items = await run(db.from('collection')
+                    .select('id,type,title,poster,year,rating,toprank,customlists,rewatch,trailer')
+                    .order('id', { ascending: false }));
+                render();
             } catch (error) {
+                $('listContainer').innerHTML = '<div class="empty-state">Не удалось загрузить базу.</div>';
                 console.error(error);
-                document.getElementById('listContainer').innerHTML = '<p style="color:var(--primary);">Ошибка подключения к БД.</p>';
             }
         }
 
-        function applyFilters() {
-            const search = document.getElementById('searchInput').value.trim().toLowerCase();
-            const typeFilter = document.getElementById('typeFilter').value;
-            const sortType = document.getElementById('sortSelect').value;
+        function render() {
+            const q = normalizeSearch($('searchInput').value);
+            const type = $('typeFilter').value;
+            let list = items.filter(i => (!q || normalizeSearch(i.title).includes(q)) && (type === 'all' || i.type === type));
+            list = sortItems(list, $('sortSelect').value);
 
-            let filtered = [...currentData];
-
-            if (search) {
-                filtered = filtered.filter(i => (i.title || '').toLowerCase().includes(search));
-            }
-            if (typeFilter !== 'all') {
-                filtered = filtered.filter(i => i.type === typeFilter);
-            }
-
-            if (sortType === 'rating_desc') {
-                filtered.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
-            } else if (sortType === 'rating_asc') {
-                filtered.sort((a, b) => (a.rating ?? 999) - (b.rating ?? 999));
-            } else if (sortType === 'year_desc') {
-                filtered.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
-            } else if (sortType === 'year_asc') {
-                filtered.sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999));
-            }
-
-            renderList(filtered);
-        }
-
-        function renderList(list) {
-            document.getElementById('resultCount').textContent = `Найдено: ${list.length} из ${currentData.length}`;
-
-            if (list.length === 0) {
-                document.getElementById('listContainer').innerHTML = '<div class="empty-state">Ничего не найдено.</div>';
+            $('resultCount').textContent = `Найдено: ${list.length} из ${items.length}`;
+            if (!list.length) {
+                $('listContainer').innerHTML = '<div class="empty-state">Ничего не найдено.</div>';
                 return;
             }
-
-            const html = list.map(i => {
-                const typeName = i.type === 'movies' ? 'Фильм' : i.type === 'series' ? 'Сериал' : 'Мультфильм';
-                const isTop = (i.toprank && i.toprank > 0) ? `🏆 Топ-${i.toprank}` : '';
-                const isRewatch = i.rewatch ? `🔄 Пересматриваем` : '';
-                const ratingStr = (i.rating !== null && i.rating !== undefined) ? `★ ${i.rating}` : '';
-                const metaParts = [typeName, i.year || '', ratingStr, isTop, isRewatch].filter(Boolean).join(' • ');
+            $('listContainer').innerHTML = list.map(i => {
+                const extra = [i.toprank > 0 ? `🏆 ${i.toprank}` : '', i.rewatch ? '🔄' : ''];
+                const lists = splitList(i.customlists);
+                const editUrl = `admin.html?edit=${encodeURIComponent(i.id)}`;
                 return `
                 <div class="item">
+                    <a href="${editUrl}" tabindex="-1">${posterImg(i.poster, { size: 'small' })}</a>
                     <div class="item-info">
-                        <div class="poster-wrap">
-                            <img src="${posterSrc(i.poster || '')}" data-original="${escapeHtml(i.poster || '')}" alt="Постер" onerror="handlePosterError(this)" loading="lazy" decoding="async">
-                            <a class="poster-edit-overlay" href="admin.html?edit=${encodeURIComponent(i.id)}">✏️ Изменить</a>
-                        </div>
-                        <div>
-                            <div class="item-title">${i.title}</div>
-                            <div class="item-meta">${metaParts} <br> Списки: ${i.customlists || '-'}</div>
-                        </div>
+                        <a class="item-title" href="${editUrl}">${escapeHtml(i.title)}</a>
+                        <div class="item-meta">${itemMeta(i, extra)}</div>
+                        ${lists.length ? `<div class="item-meta">📌 ${lists.map(escapeHtml).join(', ')}</div>` : ''}
                     </div>
-                    <div class="actions">
-                        <button type="button" class="btn-del" onclick="del('${i.id}')">🗑️ Удалить</button>
+                    <div class="item-actions">
+                        <a class="btn btn-sm" href="${editUrl}">✏️ Изменить</a>
+                        <button type="button" class="btn btn-sm btn-danger" data-delete="${i.id}">🗑️</button>
                     </div>
-                </div>
-                `;
+                </div>`;
             }).join('');
-            document.getElementById('listContainer').innerHTML = html;
         }
 
-        async function del(id) {
-            if (!confirm('Точно удалить этот фильм?')) return;
+        let searchTimer;
+        $('searchInput').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 150); });
+        $('typeFilter').addEventListener('change', render);
+        $('sortSelect').addEventListener('change', render);
+
+        $('listContainer').addEventListener('click', async (e) => {
+            const btn = e.target.closest('[data-delete]');
+            if (!btn) return;
+            const item = items.find(i => String(i.id) === btn.dataset.delete);
+            if (!item || !confirm(`Удалить «${item.title}»?`)) return;
             try {
-                const { error } = await supabaseClient.from('collection').delete().eq('id', id);
-                if (error) throw error;
+                await run(db.from('collection').delete().eq('id', item.id));
                 await load();
             } catch (error) {
-                console.error("Полная ошибка удаления:", error);
-                alert("ОШИБКА ОТ БАЗЫ ДАННЫХ:\n" +
-                      "Сообщение: " + (error.message || error.toString() || "нет") + "\n" +
-                      "Детали: " + (error.details || "нет") + "\n" +
-                      "Код: " + (error.code || "нет"));
+                showError('Не удалось удалить запись.', error);
             }
-        }
+        });
 
-       // --- МАССОВЫЙ АВТОПОИСК ТРЕЙЛЕРОВ ЧЕРЕЗ TMDB ---
-        // Используем функции из tmdb-helper.js
-
-        async function findTrailerForMovie(movie) {
-            const preferredType = movie.type === 'series' ? 'tv' : 'movie';
-
-            // 1. Ищем сам фильм/сериал на TMDB (сначала на русском, затем фолбэк на английский)
-            let results = await tmdbSearchMulti(movie.title, 'ru-RU');
-            if (results.length === 0) {
-                results = await tmdbSearchMulti(movie.title, 'en-US');
-            }
-            if (results.length === 0) return null;
-
-            // 2. Берем самый релевантный результат
-            results = rankTmdbResults(results, preferredType, movie.year);
-            const best = results[0];
-            const mediaType = best.media_type === 'tv' ? 'tv' : 'movie';
-
-            // 3. Ищем трейлер для найденного ID
-            let videos = await tmdbFetchVideos(best.id, mediaType, 'ru-RU');
-            let trailer = await pickBestAvailableTrailer(videos);
-            if (!trailer) {
-                videos = await tmdbFetchVideos(best.id, mediaType, 'en-US');
-                trailer = await pickBestAvailableTrailer(videos);
-            }
-
-            if (trailer) {
-                return 'https://www.youtube.com/watch?v=' + trailer.key;
-            }
-            return null;
-        }
-
-        async function scanMissingTrailers() {
-            const scanBtn = document.getElementById('scanBtn');
-            const progressBox = document.getElementById('scanProgress');
-            const resultsBox = document.getElementById('scanResults');
-
-            // Фильтруем коллекцию: берем только те, где нет ссылки на трейлер
-            const missing = currentData.filter(i => !i.trailer || !i.trailer.trim());
-
-            if (missing.length === 0) {
-                progressBox.textContent = '✅ У всех фильмов в базе уже есть трейлер.';
-                resultsBox.innerHTML = '';
+        $('scanBtn').addEventListener('click', async () => {
+            const missing = items.filter(i => !i.trailer || !i.trailer.trim());
+            const progress = $('scanProgress');
+            const results = $('scanResults');
+            results.innerHTML = '';
+            if (!missing.length) {
+                progress.textContent = '✅ У всех записей уже есть трейлер.';
                 return;
             }
 
-            scanBtn.disabled = true;
-            resultsBox.innerHTML = '';
-
-            let successCount = 0;
-
-            for (let idx = 0; idx < missing.length; idx++) {
-                const movie = missing[idx];
-                progressBox.textContent = `Ищу трейлеры... ${idx + 1} из ${missing.length}`;
-
-                const rowId = `scanrow_${movie.id}`;
-                resultsBox.insertAdjacentHTML('beforeend', `
-                    <div class="item" id="${rowId}" style="align-items:flex-start;">
-                        <div class="item-info">
-                            <div>
-                                <div class="item-title">${escapeHtml(movie.title)}${movie.year ? ' (' + movie.year + ')' : ''}</div>
-                                <div class="item-meta">⏳ Поиск трейлера на YouTube...</div>
-                            </div>
-                        </div>
-                    </div>
-                `);
-
+            $('scanBtn').disabled = true;
+            let found = 0;
+            for (const [idx, item] of missing.entries()) {
+                progress.textContent = `Ищу трейлеры… ${idx + 1} из ${missing.length}`;
+                const row = document.createElement('div');
+                row.className = 'item';
+                row.innerHTML = `<div class="item-info"><div class="item-title">${escapeHtml(item.title)}${item.year ? ` (${item.year})` : ''}</div><div class="item-meta">⏳ Поиск…</div></div>`;
+                results.appendChild(row);
+                const meta = row.querySelector('.item-meta');
                 try {
-                    const trailerUrl = await findTrailerForMovie(movie);
-                    const row = document.getElementById(rowId);
-
-                    if (!trailerUrl) {
-                        row.querySelector('.item-meta').innerHTML = '❌ Трейлер не найден';
-                        continue;
-                    }
-
-                    // Сохраняем найденный трейлер в Supabase
-                    const { error } = await supabaseClient.from('collection').update({ trailer: trailerUrl }).eq('id', movie.id);
-                    if (error) throw error;
-
-                    // Обновляем локальные данные в памяти
-                    movie.trailer = trailerUrl;
-                    successCount++;
-
-                    row.innerHTML = `
-                        <div class="item-info" style="align-items:flex-start;">
-                            <div>
-                                <div class="item-title">${escapeHtml(movie.title)}${movie.year ? ' (' + movie.year + ')' : ''}</div>
-                                <div style="margin-top:8px; color:#2ecc71; font-size:13px; font-weight: 600;">
-                                    ✅ Трейлер найден и сохранён: <a href="${trailerUrl}" target="_blank" style="color:#2ecc71; text-decoration:underline;">Смотреть</a>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                } catch (err) {
-                    console.error(err);
-                    const row = document.getElementById(rowId);
-                    if (row) row.querySelector('.item-meta').innerHTML = `⚠️ Ошибка: ${escapeHtml(err.message || 'неизвестная')}`;
+                    const url = await findTrailerByTitle(item.title, item.type, item.year);
+                    if (!url) { meta.textContent = '❌ Трейлер не найден'; continue; }
+                    await run(db.from('collection').update({ trailer: url }).eq('id', item.id));
+                    item.trailer = url;
+                    found++;
+                    meta.innerHTML = `✅ Сохранён: <a href="${escapeHtml(url)}" target="_blank" rel="noopener">смотреть</a>`;
+                } catch (error) {
+                    console.error(error);
+                    meta.textContent = `⚠️ Ошибка: ${error.message || 'неизвестная'}`;
                 }
             }
-
-            progressBox.textContent = `Готово. Обработано ${missing.length} фильм(ов). Успешно добавлено: ${successCount}.`;
-            scanBtn.disabled = false;
-        }
-
-        // escapeHtml() подключается из общего tmdb-helper.js
+            progress.textContent = `Готово: обработано ${missing.length}, найдено ${found}.`;
+            $('scanBtn').disabled = false;
+        });
 
         load();
     </script>

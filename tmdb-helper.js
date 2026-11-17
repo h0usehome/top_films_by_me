@@ -1,91 +1,67 @@
-// =====================================================================
-// ОБЩИЕ ФУНКЦИИ ПОИСКА ПОСТЕРОВ ЧЕРЕЗ TMDB
-// Используются и в admin.html (поиск при добавлении/редактировании),
-// и в database.html (массовый поиск для уже добавленных фильмов),
-// чтобы логика поиска не расходилась между страницами.
-// =====================================================================
+// Поиск постеров и трейлеров через TMDB (админка)
+
+async function tmdbGet(path, params) {
+    const query = new URLSearchParams({ api_key: TMDB_API_KEY, ...params });
+    const res = await fetch(`https://api.themoviedb.org/3/${path}?${query}`);
+    const data = await res.json();
+    if (!res.ok || data.success === false) throw new Error(data.status_message || `TMDB: ${res.status}`);
+    return data;
+}
 
 async function tmdbSearchMulti(title, language) {
-    const url = `https://api.themoviedb.org/3/search/multi?api_key=${TMDB_API_KEY}&language=${language}&include_adult=false&query=${encodeURIComponent(title)}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!res.ok || data.success === false) {
-        throw new Error(data.status_message || ('TMDB request failed: ' + res.status));
-    }
+    const data = await tmdbGet('search/multi', { language, include_adult: 'false', query: title });
     return (data.results || []).filter(r => (r.media_type === 'movie' || r.media_type === 'tv') && r.poster_path);
 }
 
+// Сначала нужный тип (фильм/сериал), потом совпадение по году, потом популярность
 function rankTmdbResults(results, preferredType, year) {
-    return [...results].sort((a, b) => {
-        // Сначала совпадение по нужному типу (фильм/сериал)
-        const aTypeMatch = a.media_type === preferredType ? 1 : 0;
-        const bTypeMatch = b.media_type === preferredType ? 1 : 0;
-        if (aTypeMatch !== bTypeMatch) return bTypeMatch - aTypeMatch;
-
-        // Затем совпадение по году, если он указан
-        if (year) {
-            const aYear = (a.release_date || a.first_air_date || '').slice(0, 4);
-            const bYear = (b.release_date || b.first_air_date || '').slice(0, 4);
-            const aYearMatch = aYear === String(year) ? 1 : 0;
-            const bYearMatch = bYear === String(year) ? 1 : 0;
-            if (aYearMatch !== bYearMatch) return bYearMatch - aYearMatch;
-        }
-
-        // Затем по популярности
-        return (b.popularity || 0) - (a.popularity || 0);
-    });
+    const yearOf = r => (r.release_date || r.first_air_date || '').slice(0, 4);
+    return [...results].sort((a, b) =>
+        ((b.media_type === preferredType) - (a.media_type === preferredType))
+        || (year ? (yearOf(b) === String(year)) - (yearOf(a) === String(year)) : 0)
+        || (b.popularity || 0) - (a.popularity || 0));
 }
 
-// =====================================================================
-// ПОИСК ТРЕЙЛЕРА НА YOUTUBE ЧЕРЕЗ TMDB
-// Используем тот же tmdbId/media_type, что уже получен при поиске
-// постера, чтобы не делать повторный запрос по названию.
-// =====================================================================
-
-async function tmdbFetchVideos(tmdbId, mediaType, language) {
-    const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}/videos?api_key=${TMDB_API_KEY}&language=${language}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!res.ok) {
-        throw new Error(data.status_message || ('TMDB request failed: ' + res.status));
-    }
-    return data.results || [];
+// Русское название, а если не нашлось — английское (у многих сериалов нет перевода)
+async function tmdbFind(title, type, year) {
+    let results = await tmdbSearchMulti(title, 'ru-RU');
+    if (!results.length) results = await tmdbSearchMulti(title, 'en-US');
+    return rankTmdbResults(results, type === 'series' ? 'tv' : 'movie', year);
 }
 
-// Сортирует ролики с YouTube по приоритету: сначала официальный трейлер,
-// потом любой трейлер, потом тизер.
-function sortTrailerCandidates(videos) {
-    const yt = (videos || []).filter(v => v.site === 'YouTube' && v.key);
-    const priority = v => {
-        if (v.type === 'Trailer' && v.official) return 0;
-        if (v.type === 'Trailer') return 1;
-        if (v.type === 'Teaser') return 2;
-        return 3;
-    };
-    yt.sort((a, b) => priority(a) - priority(b));
-    return yt;
-}
-
-// TMDB иногда хранит ссылки на ролики, которые на самом YouTube уже удалены
-// или закрыты (как было с одним из трейлеров «Мстители: Финал») — TMDB это
-// не отслеживает. Проверяем реальную доступность через публичный oEmbed
-// YouTube (не требует API-ключа): если видео недоступно, он отвечает не-200.
+// TMDB хранит и ссылки на удалённые с YouTube ролики, поэтому проверяем
+// доступность через публичный oEmbed (без ключа)
 async function isYouTubeVideoAvailable(videoId) {
     try {
-        const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&format=json`);
+        const url = `https://www.youtube.com/watch?v=${videoId}`;
+        const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
         return res.ok;
-    } catch (e) {
-        // Если проверка не удалась из-за сети — не блокируем выбор, лучше
-        // предложить ролик, чем не предложить ничего.
-        return true;
+    } catch {
+        return true; // сеть недоступна — лучше предложить ролик, чем ничего
     }
 }
 
-// Перебирает кандидатов по приоритету и возвращает первый реально доступный.
 async function pickBestAvailableTrailer(videos) {
-    const candidates = sortTrailerCandidates(videos);
+    const priority = v => v.type === 'Trailer' && v.official ? 0 : v.type === 'Trailer' ? 1 : v.type === 'Teaser' ? 2 : 3;
+    const candidates = (videos || []).filter(v => v.site === 'YouTube' && v.key).sort((a, b) => priority(a) - priority(b));
     for (const v of candidates) {
         if (await isYouTubeVideoAvailable(v.key)) return v;
     }
     return null;
+}
+
+async function findTrailerForTmdbItem(tmdbId, mediaType) {
+    for (const language of ['ru-RU', 'en-US']) {
+        const data = await tmdbGet(`${mediaType}/${tmdbId}/videos`, { language });
+        const trailer = await pickBestAvailableTrailer(data.results);
+        if (trailer) return trailer;
+    }
+    return null;
+}
+
+async function findTrailerByTitle(title, type, year) {
+    const [best] = await tmdbFind(title, type, year);
+    if (!best) return null;
+    const trailer = await findTrailerForTmdbItem(best.id, best.media_type === 'tv' ? 'tv' : 'movie');
+    return trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null;
 }

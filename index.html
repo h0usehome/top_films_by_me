@@ -2,85 +2,126 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Моя коллекция</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%0A%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23141414%22/%3E%0A%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2223%22%20fill%3D%22none%22%20stroke%3D%22%23e50914%22%20stroke-width%3D%223%22/%3E%0A%3Cpolygon%20points%3D%2226%2C20%2026%2C44%2046%2C32%22%20fill%3D%22%23e50914%22/%3E%0A%3C/svg%3E">
+    <meta name="description" content="Личная коллекция фильмов, сериалов и мультфильмов: оценки, отзывы, трейлеры и ТОП-100.">
+    <meta name="theme-color" content="#0f0f13">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Моя коллекция">
+    <meta property="og:title" content="Моя коллекция фильмов">
+    <meta property="og:description" content="Фильмы, сериалы и мультфильмы с моими оценками, отзывами и трейлерами.">
+    <meta property="og:url" content="https://h0usehome.github.io/top_films_by_me/">
+    <meta property="og:image" content="https://h0usehome.github.io/top_films_by_me/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="ru_RU">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="preconnect" href="https://ktacbvcwsyajpeacdmwt.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://image.tmdb.org">
+    <link rel="preconnect" href="https://avatars.mds.yandex.net">
     <link rel="stylesheet" href="style.css">
+    <script src="config.js" defer></script>
+    <script src="common.js" defer></script>
+    <script src="app.js" defer></script>
 </head>
 <body>
+    <a class="skip-link" href="#contentGrid">К содержимому</a>
 
-    <!-- Сайдбар -->
-    <nav class="sidebar" id="sidebar">
+    <nav class="sidebar" id="sidebar" aria-label="Разделы">
         <div class="brand">MY<span>COLLECTION</span></div>
-        <div class="nav-item active" data-filter="main" onclick="setFilter('main', this)">Главная</div>
+        <a class="nav-item" href="./" data-nav data-key="main">Главная</a>
 
         <h3>Категории</h3>
-        <div class="nav-item" data-filter="movies" onclick="setFilter('movies', this)">Фильмы</div>
-        <div class="nav-item" data-filter="series" onclick="setFilter('series', this)">Сериалы</div>
-        <div class="nav-item" data-filter="cartoons" onclick="setFilter('cartoons', this)">Мультфильмы</div>
+        <a class="nav-item" href="?view=movies" data-nav data-key="movies">Фильмы</a>
+        <a class="nav-item" href="?view=series" data-nav data-key="series">Сериалы</a>
+        <a class="nav-item" href="?view=cartoons" data-nav data-key="cartoons">Мультфильмы</a>
 
         <h3>Подборки</h3>
-        <div class="nav-item" data-filter="top100" onclick="setFilter('top100', this)">ТОП 100</div>
-        <div class="nav-item" data-filter="new" onclick="setFilter('new', this)">Новинки</div>
-        <div class="nav-item" data-filter="recent" onclick="setFilter('recent', this)">Недавно добавлено</div>
-        <div class="nav-item" data-filter="rewatch" onclick="setFilter('rewatch', this)">Пересматриваем любимое</div>
-        
-        <h3>Мои списки</h3>
+        <a class="nav-item" href="?view=top100" data-nav data-key="top100">ТОП 100</a>
+        <a class="nav-item" href="?view=new" data-nav data-key="new">Новинки</a>
+        <a class="nav-item" href="?view=recent" data-nav data-key="recent">Недавно добавлено</a>
+        <a class="nav-item" href="?view=rewatch" data-nav data-key="rewatch">Пересматриваем любимое</a>
+
+        <h3 id="listsHeading" hidden>Мои списки</h3>
         <div id="dynamicLists"></div>
     </nav>
+    <div class="sidebar-overlay" data-action="close-drawer"></div>
 
-    <!-- Подложка для закрытия сайдбара кликом мимо -->
-    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
-
-    <!-- Основной контент -->
-    <main class="main-content">
-       <header>
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <button class="burger" onclick="toggleSidebar()">☰</button>
-                <div class="page-title" id="pageTitle">Главная</div>
-                <button id="backToMainBtn" class="back-to-main-btn" onclick="goToFilter('main')" style="display: none;" title="Вернуться на главную">✕</button>
-                
-                <div id="online-counter" style="font-size: 14px; color: var(--primary); font-weight: 700; margin-left: 10px; border: 1px solid rgba(229,9,20,0.3); padding: 4px 10px; border-radius: 20px; background: rgba(229,9,20,0.1);">Онлайн: 0</div>
+    <main class="main">
+        <header class="header" id="header">
+            <div class="header-row">
+                <button type="button" class="icon-btn burger" id="burger" data-action="drawer" aria-label="Меню" aria-controls="sidebar" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                </button>
+                <a class="icon-btn back-btn" id="backToMain" href="./" data-nav aria-label="На главную" hidden>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+                </a>
+                <h1 class="page-title" id="pageTitle">Главная</h1>
+                <form class="search" id="searchForm" role="search">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                    <input type="search" id="search" placeholder="Поиск по названию" aria-label="Поиск по названию" autocomplete="off" enterkeyhint="search">
+                </form>
+                <button type="button" class="icon-btn search-toggle" data-action="search" aria-label="Поиск">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                </button>
             </div>
-            
-            <div style="display: none; gap: 10px; flex-wrap: wrap;" id="filtersBar">
-                <select class="sort-select" id="genreSelect" onchange="setGenreFilter(this.value)">
+
+            <div class="filters" id="filtersBar" hidden>
+                <select class="select" id="genreSelect" aria-label="Жанр">
                     <option value="all">Все жанры</option>
                 </select>
-
-                <select class="sort-select" id="sortSelect" onchange="setSort(this.value)">
-                    <option value="default">Сортировка: по умолчанию</option>
-                    <option value="rating_desc">Рейтинг: сначала высокий</option>
-                    <option value="rating_asc">Рейтинг: сначала низкий</option>
-                    <option value="year_desc">Год выхода: сначала новые</option>
-                    <option value="year_asc">Год выхода: сначала старые</option>
+                <select class="select" id="sortSelect" aria-label="Сортировка">
+                    <option value="default">По умолчанию</option>
+                    <option value="rating_desc">Рейтинг ↓</option>
+                    <option value="rating_asc">Рейтинг ↑</option>
+                    <option value="year_desc">Сначала новые</option>
+                    <option value="year_asc">Сначала старые</option>
+                    <option value="title">По названию</option>
                 </select>
+                <span class="result-count" id="resultCount"></span>
             </div>
         </header>
 
-        <div class="content-wrapper">
-            <div class="grid" id="contentGrid">
-                <div class="empty-state">Загрузка данных...</div>
+        <div class="content">
+            <div class="grid" id="contentGrid" aria-live="polite">
+                <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+                <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
             </div>
         </div>
     </main>
 
-    <!-- Модальное окно -->
-    <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
-        <div class="modal-content">
-            <button class="modal-close" onclick="closeModal()">&times;</button>
-            <div class="modal-body" id="modalBody"></div>
+    <nav class="tabbar" aria-label="Основные разделы">
+        <a href="./" data-nav data-key="main">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Главная
+        </a>
+        <a href="?view=movies" data-nav data-key="movies">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>Фильмы
+        </a>
+        <a href="?view=series" data-nav data-key="series">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M8 2l4 4 4-4"/></svg>Сериалы
+        </a>
+        <a href="?view=cartoons" data-nav data-key="cartoons">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/></svg>Мульты
+        </a>
+        <a href="?view=top100" data-nav data-key="top100">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/></svg>ТОП
+        </a>
+    </nav>
+
+    <div class="modal-overlay" id="modalOverlay" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="filmTitle">
+            <button type="button" class="modal-close" data-action="close-film" aria-label="Закрыть">&times;</button>
+            <div class="modal-scroll" id="modalContent">
+                <div class="film" id="modalBody"></div>
+            </div>
         </div>
     </div>
 
-    <!-- Окошко с трейлером -->
-    <div class="trailer-overlay" id="trailerOverlay" onclick="closeTrailer(event)">
-        <button class="modal-close" onclick="closeTrailer()">&times;</button>
+    <div class="trailer-overlay" id="trailerOverlay" hidden>
+        <button type="button" class="modal-close" data-action="close-trailer" aria-label="Закрыть трейлер">&times;</button>
         <div class="trailer-frame" id="trailerFrame"></div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
-    <script src="app.js"></script>
 </body>
 </html>

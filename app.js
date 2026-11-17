@@ -1,542 +1,503 @@
-function escapeAttr(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-// escapeAttr экранирует и < >, поэтому годится и для текста внутри HTML
-const escapeHtml = escapeAttr;
-
-// Картинки внутри описания/отзыва: [img]https://...[/img].
-// Текст сначала экранируется целиком, потом пропускаются только http(s)-ссылки,
-// чтобы через описание нельзя было вставить свой HTML или скрипт.
-function formatRichText(text) {
-    const imgStyle = 'max-width: 100%; height: auto; border-radius: 8px; margin: 15px 0; display: block; box-shadow: 0 5px 15px rgba(0,0,0,0.5);';
-    return escapeHtml(text || '').replace(/\[img\](.*?)\[\/img\]/gi, (m, url) => {
-        return /^https?:\/\/[^\s"'<>]+$/i.test(url)
-            ? `<img src="${url}" style="${imgStyle}" alt="Иллюстрация" loading="lazy">`
-            : '';
-    });
-}
-
-function posterSrc(poster) {
-    if (!poster || !String(poster).trim()) return FALLBACK_POSTER;
-    const url = String(poster).trim();
-    const driveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([\w-]+)/);
-    if (driveMatch) {
-        return `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
-    }
-    return url;
-}
-
-const FALLBACK_POSTER = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300">
-        <rect width="200" height="300" fill="#1f1f1f"/>
-        <text x="50%" y="50%" fill="#555" font-size="16" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">Нет постера</text>
-    </svg>`
-);
-
-function proxiedPosterUrl(url) {
-    const bare = String(url).replace(/^https?:\/\//, '');
-    return `https://wsrv.nl/?url=${encodeURIComponent(bare)}`;
-}
-
-function handlePosterError(imgEl) {
-    const original = imgEl.dataset.original;
-    if (!imgEl.dataset.triedProxy && original && original.trim()) {
-        imgEl.dataset.triedProxy = '1';
-        imgEl.src = proxiedPosterUrl(original.trim());
-        return;
-    }
-    imgEl.onerror = null;
-    imgEl.src = FALLBACK_POSTER;
-}
-
-// SUPABASE_URL, SUPABASE_KEY и supabaseClient подключаются из общего config.js
-
-const onlineChannel = supabaseClient.channel('online-users');
-
-onlineChannel
-  .on('presence', { event: 'sync' }, () => {
-    const presenceState = onlineChannel.presenceState();
-    const onlineCount = Object.keys(presenceState).length;
-    const counterEl = document.getElementById('online-counter');
-    if (counterEl) {
-        counterEl.innerText = `Онлайн: ${onlineCount}`;
-    }
-  })
-  .subscribe(async (status) => {
-    if (status === 'SUBSCRIBED') {
-      await onlineChannel.track({
-        user_id: 'guest_' + Math.random().toString(36).substring(2, 9),
-        online_at: new Date().toISOString()
-      });
-    }
-  });
-
-let allData = [];
-let currentFilter = 'main';
-let currentSort = 'default';
-let currentGenre = 'all'; 
-
-function generateGenres() {
-    const genreSet = new Set();
-    allData.forEach(item => {
-        if(item.genres) {
-            item.genres.split(',').forEach(g => {
-                const cleanName = g.trim();
-                if(cleanName) genreSet.add(cleanName);
-            });
-        }
-    });
-
-    const select = document.getElementById('genreSelect');
-    const sortedGenres = Array.from(genreSet).sort((a, b) => a.localeCompare(b, 'ru'));
-    
-    sortedGenres.forEach(genre => {
-        const option = document.createElement('option');
-        option.value = genre;
-        option.textContent = genre;
-        select.appendChild(option);
-    });
-}
-
-function setGenreFilter(genre) {
-    currentGenre = genre;
-    render();
-}
-
-const FILTER_TITLES = {
+const VIEW_TITLES = {
     main: 'Главная', movies: 'Фильмы', series: 'Сериалы', cartoons: 'Мультфильмы',
     top100: 'ТОП 100', new: 'Новинки', recent: 'Недавно добавлено', rewatch: 'Пересматриваем любимое'
 };
+const SITE_TITLE = 'Моя коллекция';
+// Описание и отзыв — самые тяжёлые поля, их грузим при открытии карточки
+const LIST_FIELDS = 'id,type,title,poster,year,rating,genres,toprank,customlists,created_at,rewatch,trailer';
+const HOME_ROW_LIMIT = 10;
+const RECENT_LIMIT = 24;
 
-const TYPE_NAMES = { movies: 'Фильм', series: 'Сериал', cartoons: 'Мультфильм' };
+let items = [];
+let state = { view: 'main', list: null, q: '', genre: 'all', sort: 'default', film: null };
+let lastFocus = null;
 
-function getTypeName(type) { return TYPE_NAMES[type] || 'Неизвестно'; }
+const $ = (id) => document.getElementById(id);
 
-function getUniqueCustomLists() {
-    const listSet = new Set();
-    allData.forEach(item => {
-        if (item.customlists) {
-            item.customlists.split(',').forEach(l => {
-                const cleanName = l.trim();
-                if (cleanName) listSet.add(cleanName);
-            });
-        }
+// ---------- Данные ----------
+
+async function api(path) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
     });
-    return Array.from(listSet);
+    if (!res.ok) throw new Error(`Supabase: ${res.status}`);
+    return res.json();
 }
 
-document.addEventListener('DOMContentLoaded', init);
+async function loadDetails(item) {
+    if (item.details) return item.details;
+    const [row] = await api(`collection?select=description,review&id=eq.${encodeURIComponent(item.id)}`);
+    item.details = { description: row?.description || '', review: row?.review || '' };
+    return item.details;
+}
 
-async function init() {
-    try {
-        const { data, error } = await supabaseClient.from('collection').select('*');
-        if (error) throw error;
-        
-        allData = data || [];
-        generateCustomLists();
-        generateGenres();
-        render();
-    } catch (error) {
-        console.error("Ошибка Supabase:", error);
-        document.getElementById('contentGrid').innerHTML = '<div class="empty-state" style="color:var(--primary);">Ошибка загрузки базы данных. Проверьте консоль.</div>';
+function customLists() {
+    const names = new Set();
+    items.forEach(i => splitList(i.customlists).forEach(n => names.add(n)));
+    return [...names].sort((a, b) => a.localeCompare(b, 'ru'));
+}
+
+function topItems() {
+    return items.filter(i => i.toprank > 0).sort((a, b) => a.toprank - b.toprank).slice(0, 100);
+}
+
+function itemsForView(view, list) {
+    switch (view) {
+        case 'movies':
+        case 'series':
+        case 'cartoons':
+            return items.filter(i => i.type === view);
+        case 'top100':
+            return topItems();
+        case 'new': {
+            const year = new Date().getFullYear();
+            return items.filter(i => Number(i.year) === year);
+        }
+        case 'recent':
+            return items
+                .filter(i => i.created_at)
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                .slice(0, RECENT_LIMIT);
+        case 'rewatch':
+            return items.filter(i => i.rewatch === true);
+        case 'list':
+            return items.filter(i => splitList(i.customlists).includes(list));
+        default:
+            return items;
     }
 }
 
-function isSidebarOpen() { return document.getElementById('sidebar').classList.contains('open'); }
-
-function openSidebar() {
-    document.getElementById('sidebar').classList.add('open');
-    const overlay = document.getElementById('sidebarOverlay');
-    overlay.classList.add('open');
-    requestAnimationFrame(() => overlay.classList.add('visible'));
-    history.pushState({ sidebarOpen: true }, '');
+function searchItems(query) {
+    const q = normalizeSearch(query);
+    return items.filter(i => normalizeSearch(i.title).includes(q));
 }
 
-function closeSidebar(skipHistoryBack) {
-    document.getElementById('sidebar').classList.remove('open');
-    const overlay = document.getElementById('sidebarOverlay');
-    overlay.classList.remove('visible');
-    setTimeout(() => overlay.classList.remove('open'), 300);
-    if (!skipHistoryBack && history.state && history.state.sidebarOpen) {
-        history.back();
+// ---------- Адрес страницы ----------
+
+function stateFromUrl(search = location.search) {
+    const p = new URLSearchParams(search);
+    const list = p.get('list');
+    const view = list ? 'list' : (VIEW_TITLES[p.get('view')] ? p.get('view') : 'main');
+    return {
+        view,
+        list: list || null,
+        q: p.get('q') || '',
+        genre: p.get('genre') || 'all',
+        sort: p.get('sort') || 'default',
+        film: p.get('film') || null
+    };
+}
+
+function urlFor(s) {
+    const p = new URLSearchParams();
+    if (s.view === 'list' && s.list) p.set('list', s.list);
+    else if (s.view !== 'main') p.set('view', s.view);
+    if (s.q) p.set('q', s.q);
+    if (s.genre !== 'all') p.set('genre', s.genre);
+    if (s.sort !== 'default') p.set('sort', s.sort);
+    if (s.film) p.set('film', s.film);
+    const query = p.toString();
+    return query ? `?${query}` : location.pathname;
+}
+
+function viewKey(s) {
+    return s.view === 'list' ? `list:${s.list}` : s.view;
+}
+
+function go(next, mode = 'push', historyState = {}) {
+    const url = urlFor(next);
+    if (mode === 'push') history.pushState(historyState, '', url);
+    else history.replaceState({ ...history.state, ...historyState }, '', url);
+    applyState(next);
+}
+
+function applyState(next) {
+    const prev = state;
+    state = next;
+    const viewChanged = viewKey(prev) !== viewKey(next) || prev.q !== next.q
+        || prev.genre !== next.genre || prev.sort !== next.sort;
+    if (viewChanged || !$('contentGrid').dataset.ready) renderView();
+    if (viewKey(prev) !== viewKey(next)) window.scrollTo(0, 0);
+    if (prev.film !== next.film || !$('modalOverlay').hidden !== Boolean(next.film)) syncModal();
+}
+
+// Переход по ссылке из меню: новый раздел без поиска и фильтров
+function navigateTo(href, fromDrawer) {
+    const next = { ...stateFromUrl(new URL(href, location.href).search), film: null };
+    if (fromDrawer && history.state && history.state.drawer) {
+        // Запись меню в истории превращаем в запись нового раздела
+        hideDrawer();
+        go(next, 'replace', { drawer: false });
+    } else {
+        hideDrawer();
+        go(next, 'push');
     }
-}
-
-function toggleSidebar() {
-    if (isSidebarOpen()) closeSidebar(); else openSidebar();
 }
 
 window.addEventListener('popstate', () => {
-    if (isSidebarOpen()) closeSidebar(true);
+    hideDrawer();
+    applyState(stateFromUrl());
 });
 
-function setFilter(filterType, el) {
-    currentFilter = filterType;
-    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    el.classList.add('active');
+// ---------- Отрисовка ----------
 
-    document.getElementById('pageTitle').textContent = FILTER_TITLES[filterType] || el.textContent.trim();
-    document.getElementById('genreSelect').value = 'all';
-    currentGenre = 'all';
-    document.getElementById('filtersBar').style.display = (filterType === 'main') ? 'none' : 'flex';
+function renderView() {
+    const grid = $('contentGrid');
+    grid.dataset.ready = '1';
+    updateChrome();
 
-    const backBtn = document.getElementById('backToMainBtn');
-    if (backBtn) { backBtn.style.display = (filterType === 'main') ? 'none' : 'flex'; }
-    if(window.innerWidth <= 768 && isSidebarOpen()) closeSidebar();
-    render();
-}
-
-function goToFilter(filterType) {
-    const el = document.querySelector('.nav-item[data-filter="' + CSS.escape(filterType) + '"]');
-    if (el) { setFilter(filterType, el); } else { currentFilter = filterType; render(); }
-}
-
-function setSort(sortType) {
-    currentSort = sortType;
-    render();
-}
-
-function generateCustomLists() {
-    const uniqueLists = getUniqueCustomLists();
-    const container = document.getElementById('dynamicLists');
-    container.innerHTML = uniqueLists.map(listName => 
-        `<div class="nav-item" data-filter="${escapeAttr(listName)}" onclick="setFilter(this.dataset.filter, this)">📌 ${escapeHtml(listName)}</div>`
-    ).join('');
-}
-
-function render() {
-    const grid = document.getElementById('contentGrid');
-    if (allData.length === 0) {
+    if (!items.length) {
         grid.className = 'grid';
-        grid.innerHTML = '<div class="empty-state">Ваша коллекция пока пуста. Добавьте первый фильм в админке!</div>';
+        grid.innerHTML = '<div class="empty-state">Коллекция пока пуста.</div>';
         return;
     }
-    if (currentFilter === 'main') {
+
+    if (!state.q && state.view === 'main') {
         renderHome();
         return;
     }
 
-    let filtered = [...allData];
+    let list = state.q ? searchItems(state.q) : itemsForView(state.view, state.list);
+    if (state.genre !== 'all') list = list.filter(i => splitList(i.genres).includes(state.genre));
+    list = sortItems(list, state.sort);
+    $('resultCount').textContent = `${list.length} ${plural(list.length, 'запись', 'записи', 'записей')}`;
 
-    if (currentFilter === 'movies' || currentFilter === 'series' || currentFilter === 'cartoons') {
-        filtered = filtered.filter(i => i.type === currentFilter);
-    } else if (currentFilter === 'top100') {
-        filtered = filtered.filter(i => i.toprank && i.toprank > 0).sort((a, b) => a.toprank - b.toprank).slice(0, 100);
-    } else if (currentFilter === 'new') {
-        const currentYear = new Date().getFullYear(); 
-        filtered = filtered.filter(i => i.year === currentYear);
-    } else if (currentFilter === 'recent') {
-        filtered = [...filtered]
-            .filter(i => i.created_at && !isNaN(new Date(i.created_at)))
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            .slice(0, 12);
-    } else if (currentFilter === 'rewatch') {
-        filtered = filtered.filter(i => i.rewatch === true);
-    } else {
-        filtered = filtered.filter(i => {
-            if (!i.customlists) return false;
-            const lists = i.customlists.split(',').map(l => l.trim());
-            return lists.includes(currentFilter);
-        });
-    }
-
-    if (currentGenre !== 'all') {
-        filtered = filtered.filter(i => {
-            if (!i.genres) return false;
-            const itemGenres = i.genres.split(',').map(g => g.trim());
-            return itemGenres.includes(currentGenre);
-        });
-    }
-
-    if (currentSort === 'rating_desc') {
-        filtered.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
-    } else if (currentSort === 'rating_asc') {
-        filtered.sort((a, b) => (a.rating ?? 999) - (b.rating ?? 999));
-    } else if (currentSort === 'year_desc') {
-        filtered.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
-    } else if (currentSort === 'year_asc') {
-        filtered.sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999));
-    }
-    
-    if (filtered.length === 0) {
+    if (!list.length) {
         grid.className = 'grid';
-        grid.innerHTML = '<div class="empty-state">В этой категории пока ничего нет.</div>';
+        grid.innerHTML = `<div class="empty-state">${state.q ? 'Ничего не найдено.' : 'В этой подборке пока ничего нет.'}</div>`;
         return;
     }
 
-    if (currentFilter === 'top100') {
-        grid.className = 'top100-list';
-        grid.innerHTML = filtered.map(item => renderTop100Row(item)).join('');
+    if (state.view === 'top100' && !state.q) {
+        const rank = new Map(topItems().map((i, idx) => [i.id, idx + 1]));
+        grid.className = 'top-list';
+        grid.innerHTML = list.map(i => topRow(i, rank.get(i.id))).join('');
     } else {
         grid.className = 'grid';
-        grid.innerHTML = filtered.map(item => renderCard(item)).join('');
+        grid.innerHTML = list.map((i, idx) => card(i, idx < 8)).join('');
     }
 }
 
-function computeStats(data) {
-    const total = data.length;
-    const movies = data.filter(i => i.type === 'movies').length;
-    const series = data.filter(i => i.type === 'series').length;
-    const cartoons = data.filter(i => i.type === 'cartoons').length;
-    const rated = data.filter(i => i.rating !== null && i.rating !== undefined && i.rating !== '');
-    const avgRating = rated.length ? (rated.reduce((s, i) => s + Number(i.rating), 0) / rated.length) : null;
-    return { total, movies, series, cartoons, avgRating };
+function updateChrome() {
+    const title = state.q ? `Поиск: «${state.q}»` : (state.view === 'list' ? state.list : VIEW_TITLES[state.view]);
+    $('pageTitle').textContent = title;
+    if (!state.film) document.title = state.view === 'main' && !state.q ? SITE_TITLE : `${title} — ${SITE_TITLE}`;
+
+    const isMain = state.view === 'main' && !state.q;
+    $('filtersBar').hidden = isMain;
+    $('backToMain').hidden = isMain;
+    $('genreSelect').value = state.genre;
+    $('sortSelect').value = state.sort;
+
+    const search = $('search');
+    if (document.activeElement !== search) search.value = state.q;
+    $('header').classList.toggle('search-open', Boolean(state.q) || $('header').classList.contains('search-focus'));
+
+    const key = state.q ? null : viewKey(state);
+    document.querySelectorAll('[data-key]').forEach(el => {
+        const active = el.dataset.key === key;
+        el.classList.toggle('active', active);
+        if (active) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+    });
 }
 
 function renderHome() {
-    const grid = document.getElementById('contentGrid');
-    grid.className = 'home-dashboard';
+    const grid = $('contentGrid');
+    grid.className = 'home';
 
-    const stats = computeStats(allData);
+    const rated = items.filter(i => i.rating !== null && i.rating !== '');
+    const avg = rated.length ? (rated.reduce((s, i) => s + Number(i.rating), 0) / rated.length).toFixed(1) : '—';
+    const count = (type) => items.filter(i => i.type === type).length;
+    const stats = [
+        [items.length, 'Всего'], [count('movies'), 'Фильмы'], [count('series'), 'Сериалы'],
+        [count('cartoons'), 'Мульты'], [avg, 'Оценка']
+    ];
 
-    let html = `
-    <div class="stats-bar">
-        <div class="stat-box"><div class="stat-value">${stats.total}</div><div class="stat-label">Всего в коллекции</div></div>
-        <div class="stat-box"><div class="stat-value">${stats.movies}</div><div class="stat-label">Фильмов</div></div>
-        <div class="stat-box"><div class="stat-value">${stats.series}</div><div class="stat-label">Сериалов</div></div>
-        <div class="stat-box"><div class="stat-value">${stats.cartoons}</div><div class="stat-label">Мультфильмов</div></div>
-        <div class="stat-box"><div class="stat-value">${stats.avgRating ? stats.avgRating.toFixed(1) : '-'}</div><div class="stat-label">Средняя оценка</div></div>
-    </div>
+    const sections = [
+        ['Недавно добавлено', itemsForView('recent'), '?view=recent', 'recent'],
+        ['Новинки', itemsForView('new'), '?view=new', 'new'],
+        ['ТОП 100', topItems(), '?view=top100', 'top100'],
+        ['Пересматриваем любимое', itemsForView('rewatch'), '?view=rewatch', 'rewatch'],
+        ...customLists().map(name => [name, itemsForView('list', name), `?list=${encodeURIComponent(name)}`, `list:${name}`])
+    ].filter(([, list]) => list.length);
+
+    grid.innerHTML = `
+        <div class="stats">${stats.map(([v, l]) => `<div class="stat"><div class="stat-value">${v}</div><div class="stat-label">${l}</div></div>`).join('')}</div>
+        ${sections.map(([title, list, href], sIdx) => `
+            <section class="home-section">
+                <div class="home-section-header">
+                    <h2><a href="${escapeHtml(href)}" data-nav>${escapeHtml(title)}</a></h2>
+                    <a class="see-all" href="${escapeHtml(href)}" data-nav>Все ${list.length} →</a>
+                </div>
+                <div class="home-row">${list.slice(0, HOME_ROW_LIMIT).map((i, idx) => card(i, sIdx === 0 && idx < 6)).join('')}</div>
+            </section>`).join('') || '<div class="empty-state">Пока нечего показать.</div>'}
     `;
-
-    let anySection = false;
-
-    const recent = [...allData]
-        .filter(i => i.created_at && !isNaN(new Date(i.created_at)))
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        .slice(0, 7);
-    if (recent.length) { html += renderHomeSection('Недавно добавлено', recent, 'recent'); anySection = true; }
-
-    const currentYear = new Date().getFullYear();
-    const newReleases = allData.filter(i => i.year === currentYear).slice(0, 7);
-    if (newReleases.length) { html += renderHomeSection('Новинки', newReleases, 'new'); anySection = true; }
-    
-    const top = [...allData]
-        .filter(i => i.toprank && i.toprank > 0)
-        .sort((a, b) => a.toprank - b.toprank)
-        .slice(0, 7);
-    if (top.length) { html += renderHomeSection('ТОП 100', top, 'top100'); anySection = true; }
-
-    const rewatch = allData.filter(i => i.rewatch === true).slice(0, 7);
-    if (rewatch.length) { html += renderHomeSection('Пересматриваем любимое', rewatch, 'rewatch'); anySection = true; }
-
-    const uniqueLists = getUniqueCustomLists();
-    
-    uniqueLists.forEach(listName => {
-        const items = allData.filter(i => {
-            if (!i.customlists) return false;
-            return i.customlists.split(',').map(l => l.trim()).includes(listName);
-        }).slice(0, 7);
-        if (items.length) { html += renderHomeSection(listName, items, listName); anySection = true; }
-    });
-
-    if (!anySection) { html += '<div class="empty-state">Пока нечего показать — добавьте фильмы в подборки.</div>'; }
-
-    grid.innerHTML = html;
     markScrollableRows();
 }
 
+function card(item, eager = false) {
+    const label = [item.title, item.year].filter(Boolean).join(', ');
+    return `
+    <article class="card">
+        <a class="card-link" href="${escapeHtml(urlFor({ ...state, film: item.id }))}" data-film="${escapeHtml(item.id)}" aria-label="${escapeHtml(label)}">
+            ${posterImg(item.poster, { alt: '', lazy: !eager })}
+            <div class="card-overlay">
+                <div class="card-title">${escapeHtml(item.title)}</div>
+                <div class="card-meta">${escapeHtml(item.year || '')} • ${typeName(item.type)}</div>
+            </div>
+        </a>
+        ${item.rating !== null && item.rating !== '' ? `<span class="card-badge">★ ${escapeHtml(item.rating)}</span>` : ''}
+        ${item.trailer ? `<button type="button" class="card-trailer" data-trailer="${escapeHtml(item.trailer)}" aria-label="Трейлер: ${escapeHtml(item.title)}">▶</button>` : ''}
+    </article>`;
+}
+
+function topRow(item, rank) {
+    const medal = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+    return `
+    <article class="top-row">
+        <a class="top-link" href="${escapeHtml(urlFor({ ...state, film: item.id }))}" data-film="${escapeHtml(item.id)}">
+            <span class="top-rank ${medal}">${rank || ''}</span>
+            ${posterImg(item.poster, { size: 'small', cls: 'top-poster' })}
+            <span class="top-info">
+                <span class="top-title">${escapeHtml(item.title)}</span>
+                <span class="top-meta">${escapeHtml(item.year || '')} • ${typeName(item.type)}
+                    ${item.rating !== null && item.rating !== '' ? `<span class="rating">★ ${escapeHtml(item.rating)}</span>` : ''}</span>
+            </span>
+        </a>
+        ${item.trailer ? `<button type="button" class="top-trailer" data-trailer="${escapeHtml(item.trailer)}" aria-label="Трейлер: ${escapeHtml(item.title)}">▶</button>` : ''}
+    </article>`;
+}
+
 function markScrollableRows() {
-    const grid = document.getElementById('contentGrid');
     requestAnimationFrame(() => {
-        grid.querySelectorAll('.home-row').forEach(row => {
-            const section = row.closest('.home-section');
-            if (!section) return;
-            if (row.scrollWidth > row.clientWidth + 4) {
-                section.classList.add('scrollable');
-            } else {
-                section.classList.remove('scrollable');
-            }
+        document.querySelectorAll('.home-section').forEach(section => {
+            const row = section.querySelector('.home-row');
+            section.classList.toggle('scrollable', row.scrollWidth > row.clientWidth + 4);
         });
     });
 }
 
-function renderHomeSection(title, items, filterKey) {
-    const key = escapeAttr(filterKey);
-    return `
-    <div class="home-section">
-        <div class="home-section-header">
-            <h2 data-filter="${key}" onclick="goToFilter(this.dataset.filter)">${escapeHtml(title)}</h2>
-            <span class="see-all" data-filter="${key}" onclick="goToFilter(this.dataset.filter)">Смотреть все →</span>
-        </div>
-        <div class="home-row">${items.map(renderCard).join('')}</div>
-    </div>
-    `;
+function plural(n, one, few, many) {
+    const m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+    return many;
 }
 
-function renderCard(item) {
-    const typeName = getTypeName(item.type);
-    const trailerBtn = item.trailer ? `<div class="card-trailer-btn" data-trailer="${escapeAttr(item.trailer)}" onclick="openTrailer(this.dataset.trailer, event)" title="Смотреть трейлер">▶</div>` : '';
-    const ratingBadge = item.rating ? `<div class="card-badge">★ ${escapeHtml(item.rating)}</div>` : '';
-    
-    return `
-    <div class="card" data-id="${escapeAttr(item.id)}" onclick="openModal(this.dataset.id)">
-        ${ratingBadge}
-        <img src="${escapeAttr(posterSrc(item.poster))}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="${escapeAttr(item.title)}" loading="lazy" decoding="async">
-        <div class="card-overlay">
-            <div class="card-title">${escapeHtml(item.title)}</div>
-            <div class="card-meta">
-                <span>${escapeHtml(item.year)}</span>
-                <span>•</span>
-                <span>${typeName}</span>
-            </div>
-        </div>
-        ${trailerBtn}
-    </div>
-    `;
+function renderSidebarLists() {
+    const lists = customLists();
+    $('listsHeading').hidden = !lists.length;
+    $('dynamicLists').innerHTML = lists.map(name =>
+        `<a class="nav-item" href="?list=${encodeURIComponent(name)}" data-nav data-key="${escapeHtml('list:' + name)}">📌 ${escapeHtml(name)}</a>`
+    ).join('');
 }
 
-function renderTop100Row(item) {
-    const typeName = getTypeName(item.type);
-    const rank = item.toprank;
-    const rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
-    const trailerLink = item.trailer ? `<span class="see-all" data-trailer="${escapeAttr(item.trailer)}" onclick="openTrailer(this.dataset.trailer, event)">▶ Трейлер</span>` : '';
-    return `
-    <div class="top100-row" data-id="${escapeAttr(item.id)}" onclick="openModal(this.dataset.id)">
-        <div class="top100-rank ${rankClass}">${escapeHtml(rank)}</div>
-        <img class="top100-poster" src="${escapeAttr(posterSrc(item.poster))}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="${escapeAttr(item.title)}" loading="lazy" decoding="async">
-        <div class="top100-info">
-            <div class="top100-title">${escapeHtml(item.title)}</div>
-            <div class="top100-meta">
-                <span>${escapeHtml(item.year)} • ${typeName}</span>
-                <span class="rating">★ ${escapeHtml(item.rating || '-')}</span>
-                ${trailerLink}
-            </div>
-        </div>
-    </div>
-    `;
+function renderGenreOptions() {
+    const genres = new Set();
+    items.forEach(i => splitList(i.genres).forEach(g => genres.add(g)));
+    $('genreSelect').insertAdjacentHTML('beforeend', [...genres]
+        .sort((a, b) => a.localeCompare(b, 'ru'))
+        .map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join(''));
 }
 
-function openModal(id) {
-    const item = allData.find(i => String(i.id) === String(id));
-    if (!item) return;
+// ---------- Карточка фильма ----------
 
-    const typeName = getTypeName(item.type);
-    
-    // Формируем жанры с новым уникальным классом
-    let genresHtml = '';
-    if (item.genres) {
-        genresHtml = item.genres.split(',').map(g => `<span class="tag tag-genre">${escapeHtml(g.trim())}</span>`).join('');
+// [img]https://...[/img] внутри описания; остальной текст выводится как есть
+function richText(text) {
+    return escapeHtml(text).replace(/\[img\](.*?)\[\/img\]/gi, (m, url) =>
+        /^https?:\/\/[^\s"'<>]+$/i.test(url) ? `<img class="rich-img" src="${url}" alt="" loading="lazy">` : '');
+}
+
+function openFilm(id) {
+    lastFocus = document.activeElement;
+    go({ ...state, film: String(id) }, 'push', { film: true });
+}
+
+function closeFilm() {
+    if (history.state && history.state.film) history.back();
+    else go({ ...state, film: null }, 'replace', { film: false });
+}
+
+function syncModal() {
+    const overlay = $('modalOverlay');
+    const item = state.film && items.find(i => String(i.id) === String(state.film));
+
+    if (!item) {
+        if (overlay.hidden) return;
+        overlay.classList.remove('active');
+        setTimeout(() => { if (!state.film) overlay.hidden = true; }, 200);
+        unlockScroll();
+        updateChrome();
+        if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
+        return;
     }
-    
-    const formattedDesc = formatRichText(item.description);
-    const formattedReview = formatRichText(item.review);
 
-    document.getElementById('modalBody').innerHTML = `
-        <div class="details-poster">
-            <img src="${escapeAttr(posterSrc(item.poster))}" data-original="${escapeAttr(item.poster)}" onerror="handlePosterError(this)" alt="${escapeAttr(item.title)}" decoding="async">
-        </div>
-        <div class="details-info">
-            <div class="details-title">${escapeHtml(item.title)}</div>
-            
-            <!-- НОВАЯ РАЗМЕТКА ТЕГОВ -->
-            <div class="details-tags">
-                <span class="tag tag-type">${typeName}</span>
-                <span class="tag tag-year">${escapeHtml(item.year)}</span>
-                ${item.rating ? `<span class="tag tag-rating">★ ${escapeHtml(item.rating)}</span>` : ''}
-                ${genresHtml}
-            </div>
-            
-            ${item.trailer ? `<button type="button" class="trailer-btn-inline" data-trailer="${escapeAttr(item.trailer)}" onclick="openTrailer(this.dataset.trailer, event)">▶ Смотреть трейлер</button>` : ''}
-            ${item.description ? `
-            <div class="details-section">
-                <h4>Описание</h4>
-                <p style="white-space: pre-wrap; line-height: 1.6;">${formattedDesc}</p>
-            </div>` : ''}
-            ${item.review ? `
-            <div class="details-section">
-                <h4>Мой отзыв</h4>
-                <p style="white-space: pre-wrap; line-height: 1.6;">${formattedReview}</p>
-            </div>` : ''}
-        </div>
-    `;
-    
-    const overlay = document.getElementById('modalOverlay');
-    overlay.style.display = 'flex';
-    setTimeout(() => overlay.classList.add('active'), 10);
-    document.body.style.overflow = 'hidden'; 
+    document.title = `${item.title} — ${SITE_TITLE}`;
+    $('modalBody').innerHTML = filmHtml(item);
+    overlay.hidden = false;
+    lockScroll();
+    $('modalContent').scrollTop = 0;
+    requestAnimationFrame(() => overlay.classList.add('active'));
+    overlay.querySelector('.modal-close').focus({ preventScroll: true });
+
+    if (!item.details) {
+        loadDetails(item)
+            .then(() => { if (String(state.film) === String(item.id)) $('filmText').innerHTML = filmTextHtml(item.details); })
+            .catch(() => { if (String(state.film) === String(item.id)) $('filmText').innerHTML = '<p class="muted">Не удалось загрузить описание.</p>'; });
+    }
 }
 
-function closeModal(event) {
-    if (event && event.target.id !== 'modalOverlay' && event.target.className !== 'modal-close') return;
-    const overlay = document.getElementById('modalOverlay');
-    overlay.classList.remove('active');
-    setTimeout(() => {
-        overlay.style.display = 'none';
-        document.body.style.overflow = ''; 
-    }, 300);
+function filmHtml(item) {
+    const tags = [
+        `<span class="tag tag-type">${typeName(item.type)}</span>`,
+        item.year ? `<span class="tag">${escapeHtml(item.year)}</span>` : '',
+        item.rating !== null && item.rating !== '' ? `<span class="tag tag-rating">★ ${escapeHtml(item.rating)}</span>` : '',
+        ...splitList(item.genres).map(g => `<span class="tag tag-genre">${escapeHtml(g)}</span>`)
+    ].join('');
+
+    return `
+        <div class="film-poster">${posterImg(item.poster, { size: 'large', lazy: false })}</div>
+        <div class="film-head">
+            <h2 class="film-title" id="filmTitle">${escapeHtml(item.title)}</h2>
+            <div class="film-tags">${tags}</div>
+            ${item.trailer ? `<button type="button" class="btn-trailer" data-trailer="${escapeHtml(item.trailer)}">▶ Трейлер</button>` : ''}
+        </div>
+        <div class="film-text" id="filmText">${item.details ? filmTextHtml(item.details) : '<p class="muted">Загрузка описания…</p>'}</div>`;
 }
 
-function extractYouTubeId(url) {
-    if (!url) return null;
-    const trimmed = url.trim();
-    const m = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{6,})/);
+function filmTextHtml({ description, review }) {
+    const block = (title, text) => text ? `<section><h3>${title}</h3><p>${richText(text)}</p></section>` : '';
+    return block('Описание', description) + block('Мой отзыв', review) || '<p class="muted">Описания пока нет.</p>';
+}
+
+// ---------- Трейлер ----------
+
+function youTubeId(url) {
+    const value = String(url || '').trim();
+    const m = value.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/))([\w-]{6,})/);
     if (m) return m[1];
-    if (/^[\w-]{6,}$/.test(trimmed)) return trimmed;
-    return null;
+    return /^[\w-]{6,}$/.test(value) ? value : null;
 }
 
-function openTrailer(url, event) {
-    if (event) event.stopPropagation();
-    const id = extractYouTubeId(url);
+function openTrailer(url) {
+    const id = youTubeId(url);
     if (!id) return;
-
-    document.getElementById('trailerFrame').innerHTML =
-        `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0" title="Трейлер" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
-
-    const overlay = document.getElementById('trailerOverlay');
-    overlay.style.display = 'flex';
-    setTimeout(() => overlay.classList.add('active'), 10);
-    document.body.style.overflow = 'hidden';
+    $('trailerFrame').innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0" title="Трейлер" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+    const overlay = $('trailerOverlay');
+    overlay.hidden = false;
+    lockScroll();
+    requestAnimationFrame(() => overlay.classList.add('active'));
 }
 
-function closeTrailer(event) {
-    if (event && event.target.id !== 'trailerOverlay' && event.target.className !== 'modal-close') return;
-    const overlay = document.getElementById('trailerOverlay');
+function closeTrailer() {
+    const overlay = $('trailerOverlay');
     overlay.classList.remove('active');
     setTimeout(() => {
-        overlay.style.display = 'none';
-        document.getElementById('trailerFrame').innerHTML = ''; 
-        document.body.style.overflow = '';
-    }, 250);
+        overlay.hidden = true;
+        $('trailerFrame').innerHTML = '';
+        if ($('modalOverlay').hidden) unlockScroll();
+    }, 200);
 }
 
-document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    const trailerOverlay = document.getElementById('trailerOverlay');
-    const modalOverlay = document.getElementById('modalOverlay');
-    
-    if (trailerOverlay && trailerOverlay.classList.contains('active')) {
-        closeTrailer();
-    } else if (modalOverlay && modalOverlay.classList.contains('active')) {
-        closeModal();
-    } else if (isSidebarOpen()) {
-        closeSidebar();
-    } else if (currentFilter !== 'main') {
-        goToFilter('main');
+// ---------- Меню ----------
+
+function openDrawer() {
+    document.body.classList.add('drawer-open');
+    $('burger').setAttribute('aria-expanded', 'true');
+    history.pushState({ drawer: true }, '', location.href);
+}
+
+function hideDrawer() {
+    document.body.classList.remove('drawer-open');
+    $('burger').setAttribute('aria-expanded', 'false');
+}
+
+function closeDrawer() {
+    hideDrawer();
+    if (history.state && history.state.drawer) history.back();
+}
+
+function lockScroll() { document.documentElement.classList.add('no-scroll'); }
+function unlockScroll() { document.documentElement.classList.remove('no-scroll'); }
+
+// ---------- События ----------
+
+document.addEventListener('click', (e) => {
+    const trailer = e.target.closest('[data-trailer]');
+    if (trailer) { e.preventDefault(); openTrailer(trailer.dataset.trailer); return; }
+
+    const modified = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
+
+    const film = e.target.closest('a[data-film]');
+    if (film && !modified) { e.preventDefault(); openFilm(film.dataset.film); return; }
+
+    const nav = e.target.closest('a[data-nav]');
+    if (nav && !modified) { e.preventDefault(); navigateTo(nav.href, Boolean(nav.closest('#sidebar'))); return; }
+
+    const action = e.target.closest('[data-action]');
+    if (!action) return;
+    switch (action.dataset.action) {
+        case 'drawer': document.body.classList.contains('drawer-open') ? closeDrawer() : openDrawer(); break;
+        case 'close-drawer': closeDrawer(); break;
+        case 'close-film': closeFilm(); break;
+        case 'close-trailer': closeTrailer(); break;
+        case 'search': $('header').classList.add('search-open'); $('search').focus(); break;
     }
 });
 
-document.addEventListener('gesturestart', (e) => e.preventDefault());
-document.addEventListener('gesturechange', (e) => e.preventDefault());
-let lastTouchEnd = 0;
-document.addEventListener('touchend', (e) => {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 350) e.preventDefault();
-    lastTouchEnd = now;
-}, { passive: false });
+// Клик по затемнению вокруг окна закрывает его
+$('modalOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeFilm(); });
+$('trailerOverlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeTrailer(); });
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!$('trailerOverlay').hidden) closeTrailer();
+    else if (state.film) closeFilm();
+    else if (document.body.classList.contains('drawer-open')) closeDrawer();
+    else if (document.activeElement === $('search') && state.q) go({ ...state, q: '' }, 'replace');
+    else if (state.view !== 'main' || state.q) go({ ...stateFromUrl(''), film: null });
+});
+
+let searchTimer;
+$('search').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => go({ ...state, q: e.target.value.trim(), film: null }, 'replace'), 200);
+});
+$('search').addEventListener('focus', () => $('header').classList.add('search-focus'));
+$('search').addEventListener('blur', () => {
+    $('header').classList.remove('search-focus');
+    if (!state.q) $('header').classList.remove('search-open');
+});
+$('searchForm').addEventListener('submit', (e) => { e.preventDefault(); $('search').blur(); });
+
+$('genreSelect').addEventListener('change', (e) => go({ ...state, genre: e.target.value }, 'replace'));
+$('sortSelect').addEventListener('change', (e) => go({ ...state, sort: e.target.value }, 'replace'));
 
 let resizeTimer;
 window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-        if (currentFilter === 'main') markScrollableRows();
+        if (state.view === 'main' && !state.q) markScrollableRows();
+        if (window.innerWidth >= 1024) hideDrawer();
     }, 150);
 });
+
+// ---------- Запуск ----------
+
+async function init() {
+    state = { ...stateFromUrl(), film: null };
+    try {
+        items = await api(`collection?select=${LIST_FIELDS}`);
+    } catch (err) {
+        console.error(err);
+        $('contentGrid').className = 'grid';
+        $('contentGrid').innerHTML = '<div class="empty-state error">Не удалось загрузить коллекцию. Обновите страницу.</div>';
+        return;
+    }
+    renderSidebarLists();
+    renderGenreOptions();
+    renderView();
+    applyState(stateFromUrl());
+}
+
+init();
