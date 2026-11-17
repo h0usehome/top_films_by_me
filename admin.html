@@ -216,9 +216,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Общие для всех страниц админки: ключи и функции поиска постеров -->
     <script src="config.js"></script>
+    <!-- Вход в админку: без него изменения в базу не пройдут (RLS) -->
+    <script src="auth-guard.js"></script>
     <script src="tmdb-helper.js"></script>
     <!-- Библиотека для плавного Drag and Drop (работает и на мобилках) -->
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js"></script>
     
     <script>
         // SUPABASE_URL, SUPABASE_KEY, supabaseClient и TMDB_API_KEY

@@ -134,6 +134,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Общий для всех страниц админки: ключи Supabase -->
     <script src="config.js"></script>
+    <!-- Вход в админку: без него изменения в базу не пройдут (RLS) -->
+    <script src="auth-guard.js"></script>
 
     <script>
         // SUPABASE_URL, SUPABASE_KEY и supabaseClient
