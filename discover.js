@@ -1,0 +1,702 @@
+// Быстрое добавление фильмов и рекомендации — только для своей коллекции.
+//
+// «Добавить фильмы» (?view=discover, а для пустой коллекции — главная):
+//   популярные фильмы и сериалы по жанрам и поиск; нажал на постер —
+//   поставил оценку 1–10 или отложил в список «Хочу посмотреть».
+// «Рекомендации» (?view=recs и ряд на главной):
+//   пока коллекция пуста — тренды и самое известное; дальше — похожие на то,
+//   что оценено на 7+, и лучшее в любимом жанре.
+//
+// Данные TMDB идут через Edge Function «tmdb» (tmdb-helper.js), запись —
+// напрямую в Supabase с токеном пользователя (RLS: только своё).
+
+const WANT_LIST = 'Хочу посмотреть';
+const TMDB_IMG = 'https://image.tmdb.org/t/p/w500';
+const RECS_TTL_MS = 6 * 60 * 60 * 1000;
+
+const DC_GENRES = {
+    movie: [[35, 'Комедии'], [28, 'Боевики'], [18, 'Драмы'], [878, 'Фантастика'], [53, 'Триллеры'], [27, 'Ужасы'],
+        [10749, 'Мелодрамы'], [9648, 'Детективы'], [12, 'Приключения'], [16, 'Мультфильмы'], [14, 'Фэнтези'], [80, 'Криминал'], [10751, 'Семейные']],
+    tv: [[35, 'Комедии'], [18, 'Драмы'], [80, 'Криминал'], [9648, 'Детективы'], [10765, 'Фантастика'],
+        [10759, 'Экшен'], [16, 'Мультсериалы'], [10751, 'Семейные']]
+};
+
+// Жанры коллекции → id жанров фильмов TMDB (для «Лучшее в жанре…»)
+const GENRE_IDS = {
+    'Комедия': 35, 'Боевик': 28, 'Драма': 18, 'Фантастика': 878, 'Триллер': 53, 'Ужасы': 27, 'Мелодрама': 10749,
+    'Детектив': 9648, 'Приключения': 12, 'Фэнтези': 14, 'Криминал': 80, 'Семейный': 10751, 'Мюзикл': 10402,
+    'Военный': 10752, 'История': 36, 'Вестерн': 37, 'Мультфильм': 16
+};
+const GENRE_TITLES = {
+    35: 'Лучшие комедии', 28: 'Лучшие боевики', 18: 'Лучшие драмы', 878: 'Лучшая фантастика', 53: 'Лучшие триллеры',
+    27: 'Лучшие ужасы', 10749: 'Лучшие мелодрамы', 9648: 'Лучшие детективы', 12: 'Лучшие приключения', 14: 'Лучшее фэнтези',
+    80: 'Лучшие криминальные фильмы', 10751: 'Лучшие семейные фильмы', 10402: 'Лучшие мюзиклы', 10752: 'Лучшие военные фильмы',
+    36: 'Лучшие исторические фильмы', 37: 'Лучшие вестерны', 16: 'Лучшие мультфильмы'
+};
+
+const dc = { mt: 'movie', genre: 0, page: 1, list: [], more: false, q: '', found: null, token: 0, added: 0 };
+const dcSeen = new Map();      // key → данные TMDB карточки на экране
+const dcPending = new Map();   // key → { rating, want } пока запись сохраняется
+let dcSheet = null;            // карточка, открытая в меню оценки
+let recsMemo = null;
+let recsToken = 0;
+
+// ---------- Данные ----------
+
+async function tmdbBatch(requests) {
+    const { results } = await tmdbProxy({ action: 'batch', requests });
+    return results || [];
+}
+
+function tmdbItem(raw, mt) {
+    const date = raw.release_date || raw.first_air_date || '';
+    const item = {
+        key: `${mt}:${raw.id}`,
+        id: raw.id,
+        mt,
+        title: raw.title || raw.name || '',
+        year: date.slice(0, 4),
+        poster: raw.poster_path ? TMDB_IMG + raw.poster_path : '',
+        overview: raw.overview || '',
+        vote: raw.vote_average ? Math.round(raw.vote_average * 10) / 10 : null,
+        votes: raw.vote_count || 0,
+        cartoon: (raw.genre_ids || []).includes(16)
+    };
+    dcSeen.set(item.key, item);
+    return item;
+}
+
+// Только фильмы и сериалы с постером, которых ещё нет в коллекции
+function cleanResults(data, mt, limit = 20) {
+    return (data?.results || [])
+        .map(raw => ({ raw, mt: raw.media_type || mt }))
+        .filter(({ raw, mt }) => (mt === 'movie' || mt === 'tv') && raw.poster_path && !raw.adult)
+        .map(({ raw, mt }) => tmdbItem(raw, mt))
+        .filter(r => !findOwned(r))
+        .slice(0, limit);
+}
+
+const dcTypeName = (r) => r.cartoon ? 'Мультфильм' : r.mt === 'tv' ? 'Сериал' : 'Фильм';
+const titleKey = (title, year) => `${normalizeSearch(title).replace(/[^\p{L}\p{N}]+/gu, ' ').trim()}|${year || ''}`;
+
+// Есть ли фильм в коллекции: по id TMDB, а у старых записей — по названию и году
+function findOwned(r) {
+    const pending = dcPending.get(r.key);
+    if (pending) return { pending: true, rating: pending.rating, customlists: pending.want ? WANT_LIST : '' };
+    const byTitle = titleKey(r.title, r.year);
+    return items.find(i => (i.tmdb_id && i.tmdb_id === r.id && (i.tmdb_type || 'movie') === r.mt)
+        || (!i.tmdb_id && titleKey(i.title, i.year) === byTitle)) || null;
+}
+
+const inWantList = (item) => splitList(item?.customlists).includes(WANT_LIST);
+
+async function dbWrite(method, path, body) {
+    const token = await myToken();
+    if (!token) throw new Error('нужно войти через Telegram');
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+        method,
+        headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${token}`,
+            'content-type': 'application/json',
+            Prefer: 'return=representation'
+        },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) throw new Error(`ошибка сервера ${res.status}`);
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+}
+
+// ---------- Добавление и оценка ----------
+
+async function addFromTmdb(r, { rating = null, want = false }) {
+    if (dcPending.has(r.key)) return;
+    dcPending.set(r.key, { rating, want });
+    refreshCards(r.key);
+    try {
+        let d = null;
+        try { d = await tmdbDetails(r.id, r.mt); } catch { /* сохраним то, что уже известно */ }
+        const payload = {
+            type: d?.type || (r.cartoon ? 'cartoons' : r.mt === 'tv' ? 'series' : 'movies'),
+            title: d?.title || r.title,
+            poster: d?.poster || r.poster,
+            year: parseInt(d?.year || r.year, 10) || null,
+            rating,
+            genres: (d?.genres || []).join(', '),
+            description: d ? detailsDescription(d) : r.overview,
+            trailer: d?.trailer || '',
+            customlists: want ? WANT_LIST : '',
+            review: '',
+            rewatch: false,
+            tmdb_id: r.id,
+            tmdb_type: r.mt
+        };
+        const [row] = await dbWrite('POST', 'collection', payload);
+        row.details = { description: row.description || '', review: '' };
+        items.unshift(row);
+        dc.added++;
+        onItemsChanged();
+        window.tgApp?.HapticFeedback?.notificationOccurred?.('success');
+    } catch (err) {
+        console.error(err);
+        toast(`Не получилось добавить «${r.title}»: ${err.message}`);
+    } finally {
+        dcPending.delete(r.key);
+        refreshCards(r.key);
+        updateDcBar();
+    }
+}
+
+async function updateOwned(item, patch, r) {
+    const before = { ...item };
+    Object.assign(item, patch);
+    if (r) refreshCards(r.key);
+    try {
+        const [row] = await dbWrite('PATCH', `collection?id=eq.${encodeURIComponent(item.id)}`, patch);
+        if (row) Object.assign(item, row);
+        onItemsChanged();
+    } catch (err) {
+        Object.assign(item, before);
+        toast(`Не получилось сохранить: ${err.message}`);
+    }
+    if (r) refreshCards(r.key);
+}
+
+async function removeOwned(item, r) {
+    try {
+        await dbWrite('DELETE', `collection?id=eq.${encodeURIComponent(item.id)}`);
+        items = items.filter(i => i !== item);
+        onItemsChanged();
+        toast(`«${item.title}» удалён из коллекции`);
+    } catch (err) {
+        toast(`Не получилось удалить: ${err.message}`);
+    }
+    if (r) refreshCards(r.key);
+}
+
+function rate(r, rating) {
+    const owned = findOwned(r);
+    if (owned?.pending) return;
+    // Посмотрел то, что откладывал, — убираем из «Хочу посмотреть»
+    if (owned) updateOwned(owned, { rating, customlists: splitList(owned.customlists).filter(n => n !== WANT_LIST).join(', ') }, r);
+    else addFromTmdb(r, { rating });
+}
+
+function toggleWant(r) {
+    const owned = findOwned(r);
+    if (owned?.pending) return;
+    if (!owned) { addFromTmdb(r, { want: true }); return; }
+    const lists = splitList(owned.customlists);
+    const next = inWantList(owned) ? lists.filter(n => n !== WANT_LIST) : [...lists, WANT_LIST];
+    // Без оценки и без списка запись не нужна
+    if (!next.length && owned.rating == null) removeOwned(owned, r);
+    else updateOwned(owned, { customlists: next.join(', ') }, r);
+}
+
+function onItemsChanged() {
+    renderSidebarLists();
+    renderGenreOptions();
+    recsMemo = null;
+    try { localStorage.removeItem(recsStorageKey()); } catch { /* недоступно */ }
+}
+
+// ---------- Карточка TMDB ----------
+
+function tcard(r, reason = '') {
+    const owned = findOwned(r);
+    const mark = owned?.pending ? '<span class="tcard-mark is-busy" aria-hidden="true"></span>'
+        : owned?.rating != null ? `<span class="tcard-mark is-rated">★ ${escapeHtml(owned.rating)}</span>`
+        : owned ? '<span class="tcard-mark is-want" title="Хочу посмотреть">🔖</span>'
+        : '<span class="tcard-mark" aria-hidden="true">+</span>';
+    const label = [r.title, r.year, owned?.rating != null ? `ваша оценка ${owned.rating}` : ''].filter(Boolean).join(', ');
+    return `
+    <article class="tcard${owned ? ' is-owned' : ''}" data-tkey="${escapeHtml(r.key)}" data-reason="${escapeHtml(reason)}">
+        <button type="button" class="tcard-btn" data-dc-pick="${escapeHtml(r.key)}" aria-label="${escapeHtml(label)}">
+            ${posterImg(r.poster, { alt: '' })}
+            <span class="tcard-overlay">
+                <span class="tcard-title">${escapeHtml(r.title)}</span>
+                <span class="tcard-meta">${escapeHtml([r.year, dcTypeName(r)].filter(Boolean).join(' • '))}</span>
+                ${reason ? `<span class="tcard-reason">${escapeHtml(reason)}</span>` : ''}
+            </span>
+            ${mark}
+        </button>
+    </article>`;
+}
+
+function refreshCards(key) {
+    const r = dcSeen.get(key);
+    if (!r) return;
+    document.querySelectorAll(`.tcard[data-tkey="${CSS.escape(key)}"]`).forEach(el => {
+        el.outerHTML = tcard(r, el.dataset.reason || '');
+    });
+}
+
+// ---------- Меню оценки ----------
+
+function openPickSheet(r) {
+    dcSheet = r;
+    const owned = findOwned(r);
+    const meta = [r.year, dcTypeName(r), r.vote ? `TMDB ★ ${r.vote}` : ''].filter(Boolean).join(' • ');
+    const rated = owned?.rating != null;
+    showSheet(`
+        <div class="sheet-head">
+            ${posterImg(r.poster, { size: 'small', lazy: false, cls: 'sheet-poster' })}
+            <div class="sheet-head-text">
+                <div class="sheet-title">${escapeHtml(r.title)}</div>
+                <div class="sheet-meta">${escapeHtml(meta)}</div>
+            </div>
+        </div>
+        ${r.overview ? `<p class="pick-overview">${escapeHtml(r.overview)}</p>` : ''}
+        <div class="pick-label">${rated ? 'Ваша оценка' : 'Смотрели? Поставьте оценку'}</div>
+        <div class="rate-row" role="group" aria-label="Оценка от 1 до 10">
+            ${Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
+                `<button type="button" class="rate-btn${owned?.rating === n ? ' active' : ''}" data-dc-rate="${n}">${n}</button>`).join('')}
+        </div>
+        <div class="sheet-actions">
+            ${rated ? '' : `<button type="button" class="sheet-btn${inWantList(owned) ? ' is-on' : ''}" data-dc-want>
+                🔖 ${inWantList(owned) ? 'В списке «Хочу посмотреть»' : 'Хочу посмотреть'}</button>`}
+            <button type="button" class="sheet-btn" data-dc-trailer>▶ Трейлер</button>
+            ${owned && !owned.pending ? `<button type="button" class="sheet-btn" data-dc-open="${escapeHtml(owned.id)}">Открыть карточку</button>
+                <button type="button" class="sheet-btn sheet-btn-danger" data-dc-remove>Удалить из коллекции</button>` : ''}
+        </div>
+        <button type="button" class="sheet-cancel" data-sheet-action="close">${owned ? 'Готово' : 'Не смотрел'}</button>`, 'Оценка фильма');
+}
+
+// То же нижнее меню, что и у карточек коллекции (кнопка «Назад» и Esc его закрывают)
+function showSheet(html, label) {
+    const overlay = $('sheetOverlay');
+    if (!overlay.hidden) closeSheet(true);
+    sheetItem = null;
+    $('sheetBody').innerHTML = html;
+    overlay.querySelector('.sheet').setAttribute('aria-label', label);
+    overlay.hidden = false;
+    lockScroll();
+    window.tgApp?.HapticFeedback?.impactOccurred('light');
+    requestAnimationFrame(() => { overlay.classList.add('active'); notifyChange(); });
+    overlay.querySelector('.sheet').focus({ preventScroll: true });
+}
+
+async function playTrailer(r) {
+    toast('Ищу трейлер…');
+    try {
+        const trailer = await findTrailerForTmdbItem(r.id, r.mt);
+        if (trailer) openTrailer(`https://www.youtube.com/watch?v=${trailer.key}`);
+        else toast('Трейлер не найден');
+    } catch {
+        toast('Не удалось загрузить трейлер');
+    }
+}
+
+// ---------- «Добавить фильмы» ----------
+
+function needOwnCollectionHtml() {
+    return me
+        ? `<div class="empty-state">Добавлять и получать рекомендации можно в своей коллекции.<br>
+            <a class="btn-pill btn-pill-primary" href="./" data-nav data-mine>Моя коллекция</a></div>`
+        : `<div class="empty-state welcome">
+            <div class="welcome-emoji">🎬</div>
+            <h2>Своя коллекция фильмов</h2>
+            <p>Откройте приложение в Telegram — аккаунт создастся сам, регистрироваться не нужно.</p>
+            ${TG_BOT_URL ? `<a class="btn-pill btn-pill-primary" href="${escapeHtml(TG_BOT_URL)}" target="_blank" rel="noopener">Открыть в Telegram</a>` : ''}
+        </div>`;
+}
+
+function renderDiscover() {
+    const grid = $('contentGrid');
+    grid.className = 'discover';
+    if (!isMine()) { grid.innerHTML = needOwnCollectionHtml(); return; }
+
+    const empty = !items.length;
+    dc.added = 0;
+    grid.innerHTML = `
+        ${empty ? `
+        <section class="dc-hero">
+            <h2>🍿 Соберём вашу коллекцию</h2>
+            <p>Нажмите на то, что уже смотрели, и поставьте оценку — по ней подберём, что посмотреть дальше.</p>
+        </section>` : '<p class="dc-lead">Нажмите на постер, чтобы поставить оценку или отложить фильм на потом.</p>'}
+        <form class="dc-search" id="dcSearchForm" role="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input type="search" id="dcSearch" placeholder="Найти фильм или сериал" aria-label="Найти фильм или сериал" autocomplete="off" enterkeyhint="search" value="${escapeHtml(dc.q)}">
+        </form>
+        <div class="dc-browse" id="dcBrowse">
+            <div class="dc-tabs" role="tablist">
+                <button type="button" role="tab" data-dc-mt="movie">Фильмы</button>
+                <button type="button" role="tab" data-dc-mt="tv">Сериалы</button>
+            </div>
+            <div class="dc-chips" id="dcChips"></div>
+        </div>
+        <div class="grid dc-grid" id="dcGrid"></div>
+        <div class="dc-more"><button type="button" class="btn-pill" id="dcMore" data-dc-more hidden>Показать ещё</button></div>
+        <div class="dc-bar" id="dcBar" hidden>
+            <span id="dcBarText"></span>
+            <button type="button" class="btn-pill btn-pill-primary" data-dc-done>Готово</button>
+        </div>`;
+    syncDcControls();
+    if (dc.q) runSearch(dc.q); else loadDiscover(true);
+}
+
+function syncDcControls() {
+    document.querySelectorAll('[data-dc-mt]').forEach(b => {
+        const on = b.dataset.dcMt === dc.mt;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', String(on));
+    });
+    const chips = $('dcChips');
+    if (chips) chips.innerHTML = [[0, 'Всё популярное'], ...DC_GENRES[dc.mt]].map(([id, name]) =>
+        `<button type="button" class="dc-chip${dc.genre === id ? ' active' : ''}" data-dc-genre="${id}">${escapeHtml(name)}</button>`).join('');
+    const browse = $('dcBrowse');
+    if (browse) browse.hidden = Boolean(dc.q);
+}
+
+function dcSkeleton(n = 12) {
+    return '<div class="skeleton"></div>'.repeat(n);
+}
+
+async function loadDiscover(reset) {
+    const grid = $('dcGrid');
+    if (!grid) return;
+    const token = ++dc.token;
+    if (reset) {
+        dc.page = 1;
+        dc.list = [];
+        grid.innerHTML = dcSkeleton();
+    }
+    $('dcMore').hidden = true;
+    try {
+        // Самые известные — их чаще всего уже видели
+        const params = { language: 'ru-RU', sort_by: 'vote_count.desc', include_adult: 'false', page: dc.page };
+        if (dc.genre) params.with_genres = dc.genre;
+        const data = await tmdbGet(`discover/${dc.mt}`, params);
+        if (token !== dc.token) return;
+        const fresh = (data.results || []).filter(raw => raw.poster_path).map(raw => tmdbItem(raw, dc.mt));
+        dc.list.push(...fresh);
+        dc.more = data.page < Math.min(data.total_pages || 1, 15);
+        if (reset) grid.innerHTML = '';
+        grid.insertAdjacentHTML('beforeend', fresh.map(r => tcard(r)).join(''));
+        $('dcMore').hidden = !dc.more;
+    } catch (err) {
+        if (token !== dc.token) return;
+        console.error(err);
+        grid.innerHTML = `<div class="empty-state error">Не удалось загрузить фильмы.<br><button type="button" class="btn-pill" data-dc-retry>Попробовать ещё раз</button></div>`;
+    }
+    updateDcBar();
+}
+
+async function runSearch(q) {
+    const grid = $('dcGrid');
+    if (!grid) return;
+    const token = ++dc.token;
+    $('dcMore').hidden = true;
+    grid.innerHTML = dcSkeleton(6);
+    try {
+        let results = await tmdbSearchMulti(q, 'ru-RU');
+        if (!results.length) results = await tmdbSearchMulti(q, 'en-US');
+        if (token !== dc.token) return;
+        const list = results.map(raw => tmdbItem(raw, raw.media_type));
+        grid.innerHTML = list.length ? list.map(r => tcard(r)).join('') : '<div class="empty-state">Ничего не нашлось. Попробуйте оригинальное название.</div>';
+    } catch (err) {
+        if (token !== dc.token) return;
+        grid.innerHTML = `<div class="empty-state error">${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function updateDcBar() {
+    const bar = $('dcBar');
+    if (!bar) return;
+    bar.hidden = dc.added < 1;
+    const rated = items.filter(i => i.rating != null).length;
+    $('dcBarText').textContent = rated < 3
+        ? `Оценено ${rated} из 3 — ещё немного, и рекомендации станут точнее`
+        : `В коллекции ${items.length} ${plural(items.length, 'запись', 'записи', 'записей')}`;
+}
+
+// Закончили — показываем коллекцию с рекомендациями
+function finishDiscover() {
+    dc.q = '';
+    if (state.view === 'main' && !state.q) {
+        $('contentGrid').dataset.ready = '';
+        renderView();
+        window.scrollTo(0, 0);
+    } else {
+        go({ ...stateFromUrl(''), u: null });
+    }
+}
+
+// ---------- Рекомендации ----------
+
+const recsStorageKey = () => `recs:${me?.id || ''}`;
+
+function recsSignature() {
+    const s = items.map(i => `${i.id}:${i.rating ?? ''}:${inWantList(i) ? 1 : 0}`).sort().join(',');
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return `${items.length}:${h}`;
+}
+
+function getRecs() {
+    const sig = recsSignature();
+    if (recsMemo && recsMemo.sig === sig && Date.now() - recsMemo.at < RECS_TTL_MS) return recsMemo.promise;
+    try {
+        const saved = JSON.parse(localStorage.getItem(recsStorageKey()));
+        if (saved && saved.sig === sig && Date.now() - saved.at < RECS_TTL_MS) {
+            Object.values(saved.data).flat().forEach(entry => [entry, ...(entry?.items || [])].forEach(r => r?.key && dcSeen.set(r.key, r)));
+            recsMemo = { sig, at: saved.at, promise: Promise.resolve(saved.data) };
+            return recsMemo.promise;
+        }
+    } catch { /* нет сохранённых */ }
+    const promise = buildRecs().then(data => {
+        try { localStorage.setItem(recsStorageKey(), JSON.stringify({ sig, at: Date.now(), data })); } catch { /* переполнено */ }
+        return data;
+    });
+    recsMemo = { sig, at: Date.now(), promise };
+    promise.catch(() => { if (recsMemo?.promise === promise) recsMemo = null; });
+    return promise;
+}
+
+const byRecent = (a, b) => new Date(b.created_at) - new Date(a.created_at);
+
+// На чём строить: оценки 7+, затем отложенное и недавнее
+function pickSeeds() {
+    const liked = items.filter(i => i.rating >= 7).sort((a, b) => b.rating - a.rating || byRecent(a, b)).slice(0, 8);
+    if (liked.length >= 3) return liked;
+    const extra = items.filter(i => !liked.includes(i) && (i.rating == null || i.rating >= 6)).sort(byRecent);
+    return [...liked, ...extra].slice(0, Math.max(liked.length, 4));
+}
+
+// У записей, добавленных вручную, нет id TMDB — находим по названию и году и запоминаем
+async function resolveTmdbIds(seeds) {
+    const missing = seeds.filter(s => !s.tmdb_id);
+    missing.forEach(s => {
+        const cached = localStorage.getItem(`tmdbid:${s.id}`);
+        if (cached) [s.tmdb_type, s.tmdb_id] = [cached.split(':')[0], Number(cached.split(':')[1])];
+    });
+    const unresolved = missing.filter(s => !s.tmdb_id);
+    if (!unresolved.length) return;
+    const results = await tmdbBatch(unresolved.map(s => ({ path: 'search/multi', params: { query: s.title, language: 'ru-RU', include_adult: 'false' } })));
+    unresolved.forEach((s, idx) => {
+        const options = (results[idx]?.results || []).filter(r => (r.media_type === 'movie' || r.media_type === 'tv') && r.poster_path);
+        const [best] = rankTmdbResults(options, s.type === 'series' ? 'tv' : 'movie', s.year);
+        if (!best) return;
+        const year = Number((best.release_date || best.first_air_date || '').slice(0, 4));
+        if (s.year && year && Math.abs(year - s.year) > 1) return; // скорее всего, другой фильм
+        s.tmdb_id = best.id;
+        s.tmdb_type = best.media_type;
+        try { localStorage.setItem(`tmdbid:${s.id}`, `${s.tmdb_type}:${s.tmdb_id}`); } catch { /* недоступно */ }
+        if (isMine()) dbWrite('PATCH', `collection?id=eq.${s.id}`, { tmdb_id: s.tmdb_id, tmdb_type: s.tmdb_type }).catch(() => {});
+    });
+}
+
+// Любимый жанр: оценки выше 6 добавляют вес, ниже — отнимают
+function favoriteGenre() {
+    const weight = new Map();
+    items.forEach(i => {
+        const w = i.rating == null ? (inWantList(i) ? 0.5 : 0) : i.rating - 6;
+        const names = splitList(i.genres);
+        if (i.type === 'cartoons') names.push('Мультфильм');
+        names.forEach(n => { if (GENRE_IDS[n]) weight.set(n, (weight.get(n) || 0) + w); });
+    });
+    const [best] = [...weight.entries()].filter(([, w]) => w > 0).sort((a, b) => b[1] - a[1]);
+    if (!best) return null;
+    const id = GENRE_IDS[best[0]];
+    return { id, title: GENRE_TITLES[id] || `Лучшее: ${best[0].toLowerCase()}` };
+}
+
+async function buildRecs() {
+    if (!items.length) {
+        const [trending, movies, tv] = await tmdbBatch([
+            { path: 'trending/all/week', params: { language: 'ru-RU' } },
+            { path: 'discover/movie', params: { language: 'ru-RU', sort_by: 'vote_count.desc' } },
+            { path: 'discover/tv', params: { language: 'ru-RU', sort_by: 'vote_count.desc' } }
+        ]);
+        return {
+            cold: true,
+            forYou: [],
+            because: [],
+            rows: [
+                { title: 'Сейчас в тренде', items: cleanResults(trending, 'movie') },
+                { title: 'Фильмы, которые видели все', items: cleanResults(movies, 'movie') },
+                { title: 'Сериалы, которые видели все', items: cleanResults(tv, 'tv') }
+            ]
+        };
+    }
+
+    const seeds = pickSeeds();
+    await resolveTmdbIds(seeds);
+    const ready = seeds.filter(s => s.tmdb_id);
+    const genre = favoriteGenre();
+    const requests = [
+        ...ready.map(s => ({ path: `${s.tmdb_type || 'movie'}/${s.tmdb_id}/recommendations`, params: { language: 'ru-RU' } })),
+        { path: 'trending/all/week', params: { language: 'ru-RU' } }
+    ];
+    if (genre) requests.push({ path: 'discover/movie', params: { language: 'ru-RU', with_genres: genre.id, sort_by: 'vote_average.desc', 'vote_count.gte': 1500 } });
+    const results = await tmdbBatch(requests);
+
+    // Чем выше оценка «источника» и выше место в его списке, тем больше вес
+    const scores = new Map();
+    ready.forEach((seed, si) => {
+        const weight = seed.rating != null ? Math.max(0.2, (seed.rating - 5) / 5) : 0.35;
+        (results[si]?.results || []).forEach((raw, idx) => {
+            const mt = raw.media_type || seed.tmdb_type || 'movie';
+            if ((mt !== 'movie' && mt !== 'tv') || !raw.poster_path || raw.adult || (raw.vote_count || 0) < 20) return;
+            const r = tmdbItem(raw, mt);
+            if (findOwned(r)) return;
+            const add = weight * (1 - idx / 30);
+            const entry = scores.get(r.key) || { r, score: 0, best: 0, seed: null };
+            entry.score += add;
+            if (add > entry.best) { entry.best = add; entry.seed = seed; }
+            scores.set(r.key, entry);
+        });
+    });
+    scores.forEach(e => { e.score += 0.15 * Math.min(1, (e.r.vote || 0) / 10); });
+
+    const forYou = [...scores.values()]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 30)
+        .map(e => ({ ...e.r, reason: `Похоже на «${e.seed.title}»` }));
+    const because = ready.slice(0, 2)
+        .map((seed, si) => ({ title: `Потому что вам понравился «${seed.title}»`, items: cleanResults(results[si], seed.tmdb_type || 'movie', 12) }))
+        .filter(b => b.items.length >= 3);
+    const rows = [];
+    if (genre) rows.push({ title: `${genre.title} — ваш любимый жанр`, items: cleanResults(results[ready.length + 1], 'movie') });
+    rows.push({ title: 'Сейчас в тренде', items: cleanResults(results[ready.length], 'movie') });
+
+    return { cold: !ready.length, forYou, because, rows: rows.filter(r => r.items.length) };
+}
+
+// Убираем то, что успели добавить после расчёта
+const notOwned = (list) => (list || []).filter(r => !findOwned(r) || dcPending.has(r.key));
+
+function recsRowHtml(title, list, extra = '') {
+    const shown = notOwned(list);
+    if (!shown.length) return '';
+    return `
+        <section class="home-section">
+            <div class="home-section-header"><h2>${escapeHtml(title)}</h2>${extra}</div>
+            <div class="home-row">${shown.slice(0, 15).map(r => tcard(r)).join('')}</div>
+        </section>`;
+}
+
+async function renderRecs() {
+    const grid = $('contentGrid');
+    grid.className = 'recs';
+    if (!isMine()) { grid.innerHTML = needOwnCollectionHtml(); return; }
+
+    const token = ++recsToken;
+    grid.innerHTML = `<p class="dc-lead">Подбираем по вашим оценкам…</p><div class="grid">${dcSkeleton(8)}</div>`;
+    let data;
+    try {
+        data = await getRecs();
+    } catch (err) {
+        console.error(err);
+        if (token === recsToken && state.view === 'recs') {
+            grid.innerHTML = `<div class="empty-state error">Не удалось подобрать рекомендации.<br><button type="button" class="btn-pill" data-dc-retry>Попробовать ещё раз</button></div>`;
+        }
+        return;
+    }
+    if (token !== recsToken || state.view !== 'recs') return;
+
+    const rated = items.filter(i => i.rating != null).length;
+    const hint = rated < 3 ? `
+        <section class="dc-hint">
+            <div><b>${rated ? 'Оцените ещё пару фильмов' : 'Оцените 3–5 фильмов'}</b> — и подборка станет точнее.</div>
+            <a class="btn-pill btn-pill-primary" href="?view=discover" data-nav>➕ Отметить</a>
+        </section>` : '';
+    const forYou = notOwned(data.forYou);
+    grid.innerHTML = `
+        ${hint}
+        ${forYou.length ? `<h2 class="coll-heading">✨ Для вас</h2>
+            <div class="grid recs-grid">${forYou.slice(0, 12).map(r => tcard(r, r.reason)).join('')}</div>` : ''}
+        ${data.because.map(b => recsRowHtml(b.title, b.items)).join('')}
+        ${data.rows.map(row => recsRowHtml(row.title, row.items)).join('')}`;
+    markScrollableRows();
+}
+
+// Ряд «Рекомендуем вам» на главной своей коллекции
+function homeRecsHtml() {
+    return `
+        <div class="home-actions">
+            <a class="btn-pill" href="?view=discover" data-nav>➕ Добавить фильмы</a>
+            <a class="btn-pill" href="?view=recs" data-nav>✨ Рекомендации</a>
+        </div>
+        <section class="home-section" id="homeRecs" hidden></section>`;
+}
+
+async function fillHomeRecs() {
+    const el = $('homeRecs');
+    if (!el) return;
+    try {
+        const data = await getRecs();
+        if (!document.contains(el)) return;
+        const list = notOwned(data.forYou.length ? data.forYou : data.rows[0]?.items);
+        if (!list.length) return;
+        el.innerHTML = `
+            <div class="home-section-header">
+                <h2><a href="?view=recs" data-nav>✨ Рекомендуем вам</a></h2>
+                <a class="see-all" href="?view=recs" data-nav>Все →</a>
+            </div>
+            <div class="home-row">${list.slice(0, 12).map(r => tcard(r, r.reason || '')).join('')}</div>`;
+        el.hidden = false;
+        markScrollableRows();
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+// ---------- События ----------
+
+document.addEventListener('click', (e) => {
+    const pick = e.target.closest('[data-dc-pick]');
+    if (pick) { const r = dcSeen.get(pick.dataset.dcPick); if (r) openPickSheet(r); return; }
+
+    const rateBtn = e.target.closest('[data-dc-rate]');
+    if (rateBtn && dcSheet) {
+        const r = dcSheet;
+        rateBtn.classList.add('active');
+        closeSheet();
+        rate(r, Number(rateBtn.dataset.dcRate));
+        return;
+    }
+    if (e.target.closest('[data-dc-want]') && dcSheet) { const r = dcSheet; closeSheet(); toggleWant(r); return; }
+    if (e.target.closest('[data-dc-trailer]') && dcSheet) { const r = dcSheet; closeSheet(); playTrailer(r); return; }
+    const openBtn = e.target.closest('[data-dc-open]');
+    if (openBtn) { closeSheet(true); openFilm(openBtn.dataset.dcOpen); return; }
+    const removeBtn = e.target.closest('[data-dc-remove]');
+    if (removeBtn && dcSheet) {
+        // Второе нажатие подтверждает удаление
+        if (!removeBtn.dataset.confirm) { removeBtn.dataset.confirm = '1'; removeBtn.textContent = 'Нажмите ещё раз, чтобы удалить'; return; }
+        const r = dcSheet, owned = findOwned(r);
+        closeSheet();
+        if (owned && !owned.pending) removeOwned(owned, r);
+        return;
+    }
+
+    const mt = e.target.closest('[data-dc-mt]');
+    if (mt && mt.dataset.dcMt !== dc.mt) { dc.mt = mt.dataset.dcMt; dc.genre = 0; syncDcControls(); loadDiscover(true); return; }
+    const genre = e.target.closest('[data-dc-genre]');
+    if (genre) { dc.genre = Number(genre.dataset.dcGenre); syncDcControls(); loadDiscover(true); return; }
+    if (e.target.closest('[data-dc-more]')) { dc.page++; loadDiscover(false); return; }
+    if (e.target.closest('[data-dc-done]')) { finishDiscover(); return; }
+    if (e.target.closest('[data-dc-retry]')) {
+        recsMemo = null;
+        if (state.view === 'recs') renderRecs(); else loadDiscover(true);
+    }
+});
+
+let dcSearchTimer;
+document.addEventListener('input', (e) => {
+    if (e.target.id !== 'dcSearch') return;
+    clearTimeout(dcSearchTimer);
+    const q = e.target.value.trim();
+    dcSearchTimer = setTimeout(() => {
+        dc.q = q.length >= 2 ? q : '';
+        syncDcControls();
+        if (dc.q) runSearch(dc.q); else loadDiscover(true);
+    }, 350);
+});
+
+document.addEventListener('submit', (e) => {
+    if (e.target.id !== 'dcSearchForm') return;
+    e.preventDefault();
+    e.target.querySelector('input').blur();
+});

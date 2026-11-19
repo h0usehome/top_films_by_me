@@ -305,6 +305,8 @@
         }
 
         const replaceable = (id, auto) => !$(id).value.trim() || $(id).value === auto;
+        // id в TMDB выбранного варианта — по нему строятся рекомендации
+        let pickedTmdb = null;
 
         $('quickResults').addEventListener('click', async (e) => {
             const option = e.target.closest('.quick-option');
@@ -313,6 +315,7 @@
             if (!r) return;
             window.tgApp?.HapticFeedback?.impactOccurred('light');
             const token = ++quickToken;
+            pickedTmdb = { tmdb_id: r.id, tmdb_type: r.media_type === 'tv' ? 'tv' : 'movie' };
 
             // Сразу — то, что уже есть в результате поиска
             $('f_type').value = tmdbType(r);
@@ -464,7 +467,8 @@
                 toprank,
                 rewatch: $('f_rewatch').checked,
                 description: $('f_desc').value,
-                review: $('f_review').value
+                review: $('f_review').value,
+                ...(pickedTmdb || {})
             };
 
             try {
@@ -520,6 +524,7 @@
 
         function resetForm() {
             editingItem = null;
+            pickedTmdb = null;
             $('adminForm').reset();
             document.querySelectorAll('.cb-genre, .cb-list').forEach(cb => { cb.checked = false; });
             $('formTitle').textContent = 'Новая запись';

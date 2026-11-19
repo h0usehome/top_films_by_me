@@ -1,9 +1,10 @@
-// Edge Function «tmdb»: посредник между админкой и TMDB / YouTube.
+// Edge Function «tmdb»: посредник между сайтом и TMDB / YouTube.
 // Из России api.themoviedb.org и youtube.com часто недоступны напрямую,
 // а Supabase открывается — поэтому запросы идут через сервер.
 //
-// POST { action: 'get', path, params }  → ответ TMDB (только разрешённые пути)
-// POST { action: 'youtube', ids: [...] } → какие ролики ещё доступны на YouTube
+// POST { action: 'get', path, params }        → ответ TMDB (только разрешённые пути)
+// POST { action: 'batch', requests: [{ path, params }, …] } → массив ответов (до 12 за раз)
+// POST { action: 'youtube', ids: [...] }       → какие ролики ещё доступны на YouTube
 //
 // Ключ TMDB публичный (лежит и в config.js сайта); можно переопределить секретом TMDB_API_KEY.
 
@@ -18,13 +19,48 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...CORS, 'content-type': 'application/json' } });
 
-// Только то, что нужно админке
+// Поиск и карточки — для админки; подборки и «похожие» — для онбординга и рекомендаций
 const ALLOWED = [
     /^search\/(multi|movie|tv)$/,
     /^(movie|tv)\/\d+$/,
-    /^(movie|tv)\/\d+\/videos$/
+    /^(movie|tv)\/\d+\/(videos|recommendations)$/,
+    /^(movie|tv)\/(popular|top_rated)$/,
+    /^trending\/(all|movie|tv)\/(day|week)$/,
+    /^discover\/(movie|tv)$/,
+    /^genre\/(movie|tv)\/list$/
 ];
-const ALLOWED_PARAMS = ['query', 'language', 'include_adult', 'year', 'page', 'append_to_response', 'include_video_language'];
+const ALLOWED_PARAMS = [
+    'query', 'language', 'include_adult', 'year', 'page', 'append_to_response', 'include_video_language',
+    'region', 'sort_by', 'with_genres', 'without_genres', 'vote_count.gte', 'vote_average.gte', 'with_original_language'
+];
+const BATCH_LIMIT = 12;
+
+// Подборки меняются редко: держим ответы в памяти экземпляра функции
+const CACHE_TTL_MS = 30 * 60 * 1000;
+const cache = new Map<string, { at: number; status: number; data: unknown }>();
+
+async function tmdb(path: unknown, rawParams: Record<string, unknown> | undefined) {
+    const p = String(path || '');
+    if (!ALLOWED.some(re => re.test(p))) return { status: 400, data: { error: 'Путь не разрешён' } };
+
+    const params = new URLSearchParams({ api_key: TMDB_KEY });
+    for (const key of ALLOWED_PARAMS) {
+        const value = rawParams?.[key];
+        if (value !== undefined && value !== null && value !== '') params.set(key, String(value).slice(0, 200));
+    }
+    const url = `https://api.themoviedb.org/3/${p}?${params}`;
+
+    const hit = cache.get(url);
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit;
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    const entry = { at: Date.now(), status: res.status, data: await res.json() };
+    if (res.ok) {
+        if (cache.size > 500) cache.delete(cache.keys().next().value!);
+        cache.set(url, entry);
+    }
+    return entry;
+}
 
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -33,16 +69,21 @@ Deno.serve(async (req) => {
         const body = await req.json().catch(() => ({}));
 
         if (body.action === 'get') {
-            const path = String(body.path || '');
-            if (!ALLOWED.some(re => re.test(path))) return json({ error: 'Путь не разрешён' }, 400);
-            const params = new URLSearchParams({ api_key: TMDB_KEY });
-            for (const key of ALLOWED_PARAMS) {
-                const value = body.params?.[key];
-                if (value !== undefined && value !== null && value !== '') params.set(key, String(value).slice(0, 200));
-            }
-            const res = await fetch(`https://api.themoviedb.org/3/${path}?${params}`, { signal: AbortSignal.timeout(10000) });
-            const data = await res.json();
-            return json(data, res.status);
+            const { status, data } = await tmdb(body.path, body.params);
+            return json(data, status);
+        }
+
+        if (body.action === 'batch') {
+            const requests = (Array.isArray(body.requests) ? body.requests : []).slice(0, BATCH_LIMIT);
+            const results = await Promise.all(requests.map(async (r: { path?: string; params?: Record<string, unknown> }) => {
+                try {
+                    const { status, data } = await tmdb(r?.path, r?.params);
+                    return status < 400 ? data : { error: (data as { status_message?: string; error?: string })?.status_message || (data as { error?: string })?.error || `TMDB: ${status}` };
+                } catch (err) {
+                    return { error: err instanceof Error ? err.message : String(err) };
+                }
+            }));
+            return json({ results });
         }
 
         if (body.action === 'youtube') {

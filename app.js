@@ -1,7 +1,8 @@
 const VIEW_TITLES = {
     main: 'Главная', movies: 'Фильмы', series: 'Сериалы', cartoons: 'Мультфильмы',
     top100: 'ТОП 100', new: 'Новинки', recent: 'Недавно добавлено', rewatch: 'Пересматриваем любимое',
-    best: 'Лучшее', collections: 'Подборки', account: 'Аккаунт'
+    best: 'Лучшее', collections: 'Подборки', account: 'Аккаунт',
+    discover: 'Добавить фильмы', recs: 'Рекомендации'
 };
 // Готовые подборки на вкладке «Подборки» (свои списки добавляются следом)
 const COLLECTIONS = [
@@ -12,7 +13,7 @@ const COLLECTIONS = [
     ['rewatch', '🔁', 'То, к чему хочется вернуться']
 ];
 // Описание и отзыв — самые тяжёлые поля, их грузим при открытии карточки
-const LIST_FIELDS = 'id,type,title,poster,year,rating,genres,toprank,customlists,created_at,rewatch,trailer';
+const LIST_FIELDS = 'id,type,title,poster,year,rating,genres,toprank,customlists,created_at,rewatch,trailer,tmdb_id,tmdb_type';
 const PROFILE_FIELDS = 'id,handle,display_name,title,avatar_url';
 const HOME_ROW_LIMIT = 10;
 const RECENT_LIMIT = 24;
@@ -312,10 +313,19 @@ function renderView() {
         renderCollections();
         return;
     }
+    // Быстрое добавление и рекомендации — discover.js
+    if (state.view === 'recs' && !state.q) {
+        renderRecs();
+        return;
+    }
+    if ((state.view === 'discover' || (!items.length && isMine())) && !state.q) {
+        renderDiscover();
+        return;
+    }
 
     if (!items.length) {
         grid.className = 'grid';
-        grid.innerHTML = emptyCollectionHtml();
+        grid.innerHTML = '<div class="empty-state">Коллекция пока пуста.</div>';
         return;
     }
 
@@ -345,18 +355,6 @@ function renderView() {
     }
 }
 
-function emptyCollectionHtml() {
-    if (isMine()) {
-        return `<div class="empty-state welcome">
-            <div class="welcome-emoji">🍿</div>
-            <h2>Здесь будет ваша коллекция</h2>
-            <p>Добавляйте фильмы, сериалы и мультфильмы, ставьте оценки и делитесь ими с друзьями.</p>
-            <a class="btn-pill btn-pill-primary" href="admin.html">➕ Добавить первый фильм</a>
-        </div>`;
-    }
-    return '<div class="empty-state">Коллекция пока пуста.</div>';
-}
-
 function updateChrome() {
     const isMain = state.view === 'main' && !state.q;
     const title = state.q ? `Поиск: «${state.q}»`
@@ -366,7 +364,7 @@ function updateChrome() {
     $('pageTitle').textContent = title;
     if (!state.film) document.title = isMain ? collectionTitle() : `${title} — ${collectionTitle()}`;
 
-    $('filtersBar').hidden = isMain || ((state.view === 'account' || state.view === 'collections') && !state.q);
+    $('filtersBar').hidden = isMain || (['account', 'collections', 'discover', 'recs'].includes(state.view) && !state.q);
     $('backToMain').hidden = isMain;
     $('genreSelect').value = state.genre;
     $('sortSelect').value = state.sort;
@@ -448,6 +446,7 @@ function renderHome() {
     grid.innerHTML = `
         ${ownerBannerHtml()}
         <div class="stats">${stats.map(([v, l]) => `<div class="stat"><div class="stat-value">${v}</div><div class="stat-label">${l}</div></div>`).join('')}</div>
+        ${isMine() ? homeRecsHtml() : ''}
         ${sections.map(([title, list, href], sIdx) => `
             <section class="home-section">
                 <div class="home-section-header">
@@ -458,6 +457,7 @@ function renderHome() {
             </section>`).join('') || '<div class="empty-state">Пока нечего показать.</div>'}
     `;
     markScrollableRows();
+    if (isMine()) fillHomeRecs();
 }
 
 function card(item, eager = false) {
@@ -500,6 +500,7 @@ function markScrollableRows() {
     requestAnimationFrame(() => {
         document.querySelectorAll('.home-section').forEach(section => {
             const row = section.querySelector('.home-row');
+            if (!row) return;
             section.classList.toggle('scrollable', row.scrollWidth > row.clientWidth + 4);
         });
     });
@@ -558,7 +559,12 @@ function renderCollections() {
         const list = itemsForView('list', name);
         return collectionTile(urlFor({ ...base, view: 'list', list: name }), '📌', name, `${list.length} ${plural(list.length, 'запись', 'записи', 'записей')}`, list);
     });
+    const personal = isMine() ? [
+        collectionTile(urlFor({ ...base, view: 'recs' }), '✨', 'Рекомендации', 'Подобрано по вашим оценкам', []),
+        collectionTile(urlFor({ ...base, view: 'discover' }), '➕', 'Добавить фильмы', 'Популярное и поиск — оценка в одно касание', [])
+    ] : [];
     grid.innerHTML = `
+        ${personal.length ? `<h2 class="coll-heading">Для вас</h2><div class="coll-grid">${personal.join('')}</div>` : ''}
         <h2 class="coll-heading">Готовые подборки</h2>
         <div class="coll-grid">${ready.join('') || '<div class="empty-state">Пока пусто.</div>'}</div>
         <h2 class="coll-heading">${isMine() ? 'Мои списки' : 'Списки'}</h2>
@@ -604,9 +610,15 @@ function renderAccount() {
             <button type="button" class="account-tile" data-action="share-collection"><span>📤</span>Поделиться коллекцией</button>
         </div>
 
+        <h3 class="account-heading">Коллекция</h3>
+        <div class="account-menu">
+            <a class="account-row" href="?view=discover" data-nav><span>⚡</span>Быстро добавить и оценить<i>›</i></a>
+            <a class="account-row" href="?view=recs" data-nav><span>✨</span>Рекомендации<i>›</i></a>
+        </div>
+
         <h3 class="account-heading">Админка</h3>
         <div class="account-menu">
-            <a class="account-row" href="admin.html"><span>➕</span>Добавить фильм<i>›</i></a>
+            <a class="account-row" href="admin.html"><span>➕</span>Добавить фильм вручную<i>›</i></a>
             <a class="account-row" href="database.html"><span>📋</span>Вся база<i>›</i></a>
             <a class="account-row" href="admin.html#top100"><span>🏆</span>Порядок ТОП-100<i>›</i></a>
             <a class="account-row" href="lists.html"><span>🗂️</span>Мои списки<i>›</i></a>
