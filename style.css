@@ -617,7 +617,12 @@ html.tg .header .back-btn { display: none; }
 
 .home-section { position: relative; margin-bottom: 28px; }
 .home-section-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
-.home-section-header h2 { min-width: 0; font-size: 20px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-section-header h2 {
+    min-width: 0; font-size: 18px; font-weight: 800; line-height: 1.25;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.section-heading { min-width: 0; }
+.section-kicker { display: block; margin-bottom: 2px; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
 .home-section-header h2 a:hover { color: var(--primary); }
 .see-all { flex: 0 0 auto; padding: 6px 0; font-size: 13px; font-weight: 600; color: var(--muted); }
 .see-all:hover { color: var(--primary); }
@@ -799,7 +804,7 @@ html.tg .header .back-btn { display: none; }
     .sidebar { width: var(--sidebar-w); transform: none; visibility: visible; transition: none; padding-top: 28px; }
     .main { margin-left: var(--sidebar-w); }
     .card-title { font-size: 15px; }
-    .home-section-header h2 { font-size: 24px; }
+    .home-section-header h2 { font-size: 22px; }
     .home-section { margin-bottom: 36px; }
 }
 

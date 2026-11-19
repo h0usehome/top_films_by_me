@@ -60,6 +60,7 @@ function tmdbItem(raw, mt) {
         overview: raw.overview || '',
         vote: raw.vote_average ? Math.round(raw.vote_average * 10) / 10 : null,
         votes: raw.vote_count || 0,
+        genres: raw.genre_ids || [],
         cartoon: (raw.genre_ids || []).includes(16)
     };
     dcSeen.set(item.key, item);
@@ -67,10 +68,19 @@ function tmdbItem(raw, mt) {
 }
 
 // Только фильмы и сериалы с постером, которых ещё нет в коллекции
-function cleanResults(data, mt, limit = 20) {
+const TV_MOVIE_GENRE = 10770;
+
+// Отсекаем телефильмы и малоизвестное с низким рейтингом — TMDB любит их подмешивать
+function goodEnough(raw, mt) {
+    if (!raw.poster_path || raw.adult || (raw.genre_ids || []).includes(TV_MOVIE_GENRE)) return false;
+    return (raw.vote_count || 0) >= (mt === 'tv' ? 80 : 150) && (raw.vote_average || 0) >= 6.2;
+}
+
+function cleanResults(data, mt, limit = 20, strict = true) {
     return (data?.results || [])
         .map(raw => ({ raw, mt: raw.media_type || mt }))
-        .filter(({ raw, mt }) => (mt === 'movie' || mt === 'tv') && raw.poster_path && !raw.adult)
+        .filter(({ raw, mt }) => (mt === 'movie' || mt === 'tv') && raw.poster_path && !raw.adult
+            && !(raw.genre_ids || []).includes(TV_MOVIE_GENRE) && (!strict || goodEnough(raw, mt)))
         .map(({ raw, mt }) => tmdbItem(raw, mt))
         .filter(r => !findOwned(r))
         .slice(0, limit);
@@ -425,13 +435,23 @@ function finishDiscover() {
 
 // ---------- Рекомендации ----------
 
-const recsStorageKey = () => `recs:${me?.id || ''}`;
+const recsStorageKey = () => `recs2:${me?.id || ''}`;
+const today = () => new Date().toISOString().slice(0, 10);
+
+// «Случайность», одинаковая в течение дня: подборка не прыгает при каждом открытии,
+// но назавтра основа другая
+function dailyRandom(salt) {
+    const str = `${today()}:${me?.id || ''}:${salt}`;
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0) / 4294967296;
+}
 
 function recsSignature() {
     const s = items.map(i => `${i.id}:${i.rating ?? ''}:${inWantList(i) ? 1 : 0}`).sort().join(',');
     let h = 0;
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-    return `${items.length}:${h}`;
+    return `${today()}:${items.length}:${h}`;
 }
 
 function getRecs() {
@@ -457,11 +477,60 @@ function getRecs() {
 const byRecent = (a, b) => new Date(b.created_at) - new Date(a.created_at);
 
 // На чём строить: оценки 7+, затем отложенное и недавнее
+const SEED_COUNT = 10;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Основа подборки: из всех оценённых на 7+. Шанс выше у высоких оценок и свежих
+// добавлений, но состав меняется каждый день; не больше трёх фильмов одного жанра
+// и не только фильмы, если есть сериалы и мультфильмы.
 function pickSeeds() {
-    const liked = items.filter(i => i.rating >= 7).sort((a, b) => b.rating - a.rating || byRecent(a, b)).slice(0, 8);
-    if (liked.length >= 3) return liked;
-    const extra = items.filter(i => !liked.includes(i) && (i.rating == null || i.rating >= 6)).sort(byRecent);
-    return [...liked, ...extra].slice(0, Math.max(liked.length, 4));
+    const liked = items.filter(i => i.rating >= 7);
+    if (liked.length < 3) {
+        const extra = items.filter(i => !liked.includes(i) && (i.rating == null || i.rating >= 6)).sort(byRecent);
+        return [...liked, ...extra].slice(0, Math.max(liked.length, 4));
+    }
+    const ranked = liked.map(i => {
+        const recent = Date.now() - new Date(i.created_at) < 45 * DAY_MS ? 1.4 : 1;
+        return { i, w: (1 + 0.6 * (i.rating - 7)) * recent * (0.2 + dailyRandom(i.id)) };
+    }).sort((a, b) => b.w - a.w);
+
+    const picked = [];
+    const perGenre = new Map(), perType = new Map();
+    const maxPerType = Math.ceil(SEED_COUNT * 0.6);
+    for (const { i } of ranked) {
+        if (picked.length >= SEED_COUNT) break;
+        const genre = splitList(i.genres)[0] || '';
+        if ((perGenre.get(genre) || 0) >= 3 || (perType.get(i.type) || 0) >= maxPerType) continue;
+        picked.push(i);
+        perGenre.set(genre, (perGenre.get(genre) || 0) + 1);
+        perType.set(i.type, (perType.get(i.type) || 0) + 1);
+    }
+    for (const { i } of ranked) {
+        if (picked.length >= SEED_COUNT) break;
+        if (!picked.includes(i)) picked.push(i);
+    }
+    return picked;
+}
+
+// Сериальные жанры TMDB → жанры фильмов, чтобы сравнивать с предпочтениями
+const TV_GENRE_MAP = { 10759: [28, 12], 10765: [878, 14], 10768: [10752], 10762: [10751] };
+
+// Вес жанров по оценкам: понравившееся — плюс, разочаровавшее — минус (от −1 до 1)
+function genreWeights() {
+    const raw = new Map();
+    items.forEach(i => {
+        if (i.rating == null) return;
+        const names = splitList(i.genres);
+        if (i.type === 'cartoons') names.push('Мультфильм');
+        names.forEach(n => { const id = GENRE_IDS[n]; if (id) raw.set(id, (raw.get(id) || 0) + (i.rating - 6.5)); });
+    });
+    const max = Math.max(1, ...[...raw.values()].map(Math.abs));
+    return new Map([...raw].map(([id, w]) => [id, w / max]));
+}
+
+function genreAffinity(genres, weights) {
+    const ids = genres.flatMap(g => TV_GENRE_MAP[g] || [g]).filter(g => weights.has(g));
+    return ids.length ? ids.reduce((sum, g) => sum + weights.get(g), 0) / ids.length : 0;
 }
 
 // У записей, добавленных вручную, нет id TMDB — находим по названию и году и запоминаем
@@ -514,7 +583,7 @@ async function buildRecs() {
             forYou: [],
             because: [],
             rows: [
-                { title: 'Сейчас в тренде', items: cleanResults(trending, 'movie') },
+                { title: 'Сейчас в тренде', items: cleanResults(trending, 'movie', 20, false) },
                 { title: 'Фильмы, которые видели все', items: cleanResults(movies, 'movie') },
                 { title: 'Сериалы, которые видели все', items: cleanResults(tv, 'tv') }
             ]
@@ -532,34 +601,50 @@ async function buildRecs() {
     if (genre) requests.push({ path: 'discover/movie', params: { language: 'ru-RU', with_genres: genre.id, sort_by: 'vote_average.desc', 'vote_count.gte': 1500 } });
     const results = await tmdbBatch(requests);
 
-    // Чем выше оценка «источника» и выше место в его списке, тем больше вес
+    // Вклад «источника»: оценка (7 → 0.6, 10 → 1) и место в его списке похожих.
+    // Похожее сразу на несколько ваших фильмов и любимые жанры поднимаются выше.
+    const weights = genreWeights();
     const scores = new Map();
     ready.forEach((seed, si) => {
-        const weight = seed.rating != null ? Math.max(0.2, (seed.rating - 5) / 5) : 0.35;
+        const weight = seed.rating != null ? 0.6 + 0.13 * Math.max(0, seed.rating - 7) : 0.45;
         (results[si]?.results || []).forEach((raw, idx) => {
             const mt = raw.media_type || seed.tmdb_type || 'movie';
-            if ((mt !== 'movie' && mt !== 'tv') || !raw.poster_path || raw.adult || (raw.vote_count || 0) < 20) return;
+            if ((mt !== 'movie' && mt !== 'tv') || !goodEnough(raw, mt)) return;
             const r = tmdbItem(raw, mt);
             if (findOwned(r)) return;
-            const add = weight * (1 - idx / 30);
-            const entry = scores.get(r.key) || { r, score: 0, best: 0, seed: null };
+            const add = weight * (1 - idx / 25);
+            const entry = scores.get(r.key) || { r, score: 0, best: 0, seeds: [] };
             entry.score += add;
-            if (add > entry.best) { entry.best = add; entry.seed = seed; }
+            if (!entry.seeds.includes(seed)) entry.seeds.push(seed);
+            if (add > entry.best) { entry.best = add; entry.seeds = [seed, ...entry.seeds.filter(s => s !== seed)]; }
             scores.set(r.key, entry);
         });
     });
-    scores.forEach(e => { e.score += 0.15 * Math.min(1, (e.r.vote || 0) / 10); });
+    scores.forEach(e => {
+        e.score += 0.3 * (e.seeds.length - 1) + 0.3 * genreAffinity(e.r.genres, weights) + 0.1 * (e.r.vote || 0) / 10;
+    });
 
-    const forYou = [...scores.values()]
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 30)
-        .map(e => ({ ...e.r, reason: `Похоже на «${e.seed.title}»` }));
-    const because = ready.slice(0, 2)
-        .map((seed, si) => ({ title: `Потому что вам понравился «${seed.title}»`, items: cleanResults(results[si], seed.tmdb_type || 'movie', 12) }))
-        .filter(b => b.items.length >= 3);
+    // Один фильм-источник — не больше двух карточек в первой дюжине
+    const sorted = [...scores.values()].sort((a, b) => b.score - a.score);
+    const perSeed = new Map(), head = [], tail = [];
+    sorted.forEach(e => {
+        const n = perSeed.get(e.seeds[0]) || 0;
+        if (head.length < 12 && n < 2) { head.push(e); perSeed.set(e.seeds[0], n + 1); } else tail.push(e);
+    });
+    const forYou = [...head, ...tail].slice(0, 30).map(e => ({
+        ...e.r,
+        reason: e.seeds.length > 1 ? `Похоже на «${e.seeds[0].title}» и «${e.seeds[1].title}»` : `Похоже на «${e.seeds[0].title}»`
+    }));
+
+    // Ряды «Потому что вам понравился…» — каждый день про разные фильмы
+    const because = ready
+        .map((seed, si) => ({ kicker: 'Потому что вам понравился', title: `«${seed.title}»`, items: cleanResults(results[si], seed.tmdb_type || 'movie', 12), order: dailyRandom(`row:${seed.id}`) }))
+        .filter(b => b.items.length >= 4)
+        .sort((a, b) => a.order - b.order)
+        .slice(0, 2);
     const rows = [];
-    if (genre) rows.push({ title: `${genre.title} — ваш любимый жанр`, items: cleanResults(results[ready.length + 1], 'movie') });
-    rows.push({ title: 'Сейчас в тренде', items: cleanResults(results[ready.length], 'movie') });
+    if (genre) rows.push({ kicker: 'Ваш любимый жанр', title: genre.title, items: cleanResults(results[ready.length + 1], 'movie') });
+    rows.push({ title: 'Сейчас в тренде', items: cleanResults(results[ready.length], 'movie', 20, false) });
 
     return { cold: !ready.length, forYou, because, rows: rows.filter(r => r.items.length) };
 }
@@ -567,12 +652,17 @@ async function buildRecs() {
 // Убираем то, что успели добавить после расчёта
 const notOwned = (list) => (list || []).filter(r => !findOwned(r) || dcPending.has(r.key));
 
-function recsRowHtml(title, list, extra = '') {
+function recsRowHtml({ title, kicker = '', items: list }) {
     const shown = notOwned(list);
     if (!shown.length) return '';
     return `
         <section class="home-section">
-            <div class="home-section-header"><h2>${escapeHtml(title)}</h2>${extra}</div>
+            <div class="home-section-header">
+                <div class="section-heading">
+                    ${kicker ? `<span class="section-kicker">${escapeHtml(kicker)}</span>` : ''}
+                    <h2>${escapeHtml(title)}</h2>
+                </div>
+            </div>
             <div class="home-row">${shown.slice(0, 15).map(r => tcard(r)).join('')}</div>
         </section>`;
 }
@@ -607,8 +697,8 @@ async function renderRecs() {
         ${hint}
         ${forYou.length ? `<h2 class="coll-heading">✨ Для вас</h2>
             <div class="grid recs-grid">${forYou.slice(0, 12).map(r => tcard(r, r.reason)).join('')}</div>` : ''}
-        ${data.because.map(b => recsRowHtml(b.title, b.items)).join('')}
-        ${data.rows.map(row => recsRowHtml(row.title, row.items)).join('')}`;
+        ${data.because.map(recsRowHtml).join('')}
+        ${data.rows.map(recsRowHtml).join('')}`;
     markScrollableRows();
 }
 
