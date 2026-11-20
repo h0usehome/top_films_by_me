@@ -57,9 +57,11 @@ const TASTE_TAGS = [
 
     { id: 'russian', group: 'origin', label: '🪆 Русское', lang: 'ru', mt: ['movie', 'tv'], minVotes: 30 },
     { id: 'korean', group: 'origin', label: '🫰 Корейское', lang: 'ko', mt: ['movie', 'tv'], minVotes: 50 },
+    { id: 'french', group: 'origin', label: '🥐 Французское', lang: 'fr', minVotes: 80 },
     { id: 'anime', group: 'origin', label: '🍥 Аниме', lang: 'ja', genres: [16], mt: ['tv', 'movie'], minVotes: 50 },
     { id: 'oldies', group: 'origin', label: '📼 Старое кино', to: '1985-12-31' },
     { id: 'nineties', group: 'origin', label: '💿 90-е и нулевые', from: '1990-01-01', to: '2009-12-31' },
+    { id: 'tens', group: 'origin', label: '📱 Кино 2010-х', from: '2010-01-01', to: '2019-12-31' },
     { id: 'new', group: 'origin', label: '🆕 Новинки', from: `${THIS_YEAR - 1}-01-01`, sort: 'popularity.desc', minVotes: 80 },
 
     { id: 'cartoons', group: 'format', label: '🧸 Мультфильмы', genres: [16], notLang: 'ja' },
@@ -178,9 +180,8 @@ function renderTastes(first) {
         ${TASTE_GROUPS.map(([group, title]) => `
             <section class="taste-group">
                 <h3>${title}</h3>
-                <div class="taste-chips">
-                    ${TASTE_TAGS.filter(t => t.group === group).map(t => `
-                        <button type="button" class="taste-chip${tasteDraft.has(t.id) ? ' active' : ''}" data-taste="${t.id}" aria-pressed="${tasteDraft.has(t.id)}">${escapeHtml(t.label)}</button>`).join('')}
+                <div class="bubble-cloud">
+                    ${TASTE_TAGS.filter(t => t.group === group).map(bubbleHtml).join('')}
                 </div>
             </section>`).join('')}
         <div class="dc-bar taste-bar">
@@ -189,6 +190,27 @@ function renderTastes(first) {
             <button type="button" class="btn-pill btn-pill-primary" data-taste-save>${first ? 'Дальше' : 'Сохранить'}</button>
         </div>`;
     updateTasteBar(first);
+}
+
+// Размер и небольшой сдвиг у каждого пузырька свои, но постоянные —
+// облако выглядит живым и не прыгает между открытиями
+function bubbleHtml(tag, index) {
+    let h = 0;
+    for (const ch of tag.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const [emoji, ...words] = tag.label.split(' ');
+    const label = words.join(' ');
+    const longest = Math.max(...words.map(w => w.length));
+    // Пузырёк подбирается под самое длинное слово, чтобы слова не ломались
+    const size = Math.max(h % 3, longest >= 11 ? 2 : longest >= 8 ? 1 : 0);
+    const dy = ((h >>> 3) % 17) - 8;
+    const dx = (h >>> 7) % 7;
+    const on = tasteDraft.has(tag.id);
+    return `
+        <button type="button" class="bubble bubble-${size}${longest >= 13 ? ' bubble-tight' : ''}${on ? ' active' : ''}" data-taste="${tag.id}" aria-pressed="${on}"
+            style="--dy: ${dy}px; --dx: ${dx}px; --delay: ${Math.min(index, 20) * 25}ms">
+            <span class="bubble-emoji" aria-hidden="true">${emoji}</span>
+            <span class="bubble-label">${escapeHtml(label)}</span>
+        </button>`;
 }
 
 function updateTasteBar(first = state.view !== 'tastes') {
