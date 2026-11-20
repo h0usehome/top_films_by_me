@@ -506,6 +506,9 @@ html.tg .header .back-btn { display: none; }
 .dc-chip.active { background: var(--primary); border-color: var(--primary); }
 
 .dc-more { display: flex; justify-content: center; margin: 20px 0 8px; }
+.dc-grid-heading { margin: 4px 0 12px; }
+.dc-grid-heading h2 { font-size: 18px; font-weight: 800; line-height: 1.25; }
+.home-row .skeleton { flex: 0 0 var(--row-card); }
 
 /* Панель «Готово» над нижним меню */
 .dc-bar {
@@ -804,7 +807,7 @@ html.tg .header .back-btn { display: none; }
     .sidebar { width: var(--sidebar-w); transform: none; visibility: visible; transition: none; padding-top: 28px; }
     .main { margin-left: var(--sidebar-w); }
     .card-title { font-size: 15px; }
-    .home-section-header h2 { font-size: 22px; }
+    .home-section-header h2, .dc-grid-heading h2 { font-size: 22px; }
     .home-section { margin-bottom: 36px; }
 }
 

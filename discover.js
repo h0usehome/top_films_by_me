@@ -34,7 +34,7 @@ const GENRE_TITLES = {
     36: 'Лучшие исторические фильмы', 37: 'Лучшие вестерны', 16: 'Лучшие мультфильмы'
 };
 
-const dc = { mt: 'movie', genre: 0, page: 1, list: [], more: false, q: '', found: null, token: 0, added: 0 };
+const dc = { mt: 'movie', genre: 0, page: 1, more: false, q: '', token: 0, added: 0, trendKeys: new Set() };
 const dcSeen = new Map();      // key → данные TMDB карточки на экране
 const dcPending = new Map();   // key → { rating, want } пока запись сохраняется
 let dcSheet = null;            // карточка, открытая в меню оценки
@@ -336,6 +336,17 @@ function renderDiscover() {
             </div>
             <div class="dc-chips" id="dcChips"></div>
         </div>
+        <section class="home-section" id="dcTrend" hidden>
+            <div class="home-section-header"><div class="section-heading">
+                <span class="section-kicker">Новинки, которые смотрят сейчас</span>
+                <h2 id="dcTrendTitle">🔥 Сейчас в тренде</h2>
+            </div></div>
+            <div class="home-row" id="dcTrendRow"></div>
+        </section>
+        <div class="section-heading dc-grid-heading" id="dcGridHeading">
+            <span class="section-kicker">Самые известные за всё время</span>
+            <h2 id="dcGridTitle">🏆 Культовые фильмы</h2>
+        </div>
         <div class="grid dc-grid" id="dcGrid"></div>
         <div class="dc-more"><button type="button" class="btn-pill" id="dcMore" data-dc-more hidden>Показать ещё</button></div>
         <div class="dc-bar" id="dcBar" hidden>
@@ -353,14 +364,43 @@ function syncDcControls() {
         b.setAttribute('aria-selected', String(on));
     });
     const chips = $('dcChips');
-    if (chips) chips.innerHTML = [[0, 'Всё популярное'], ...DC_GENRES[dc.mt]].map(([id, name]) =>
+    if (chips) chips.innerHTML = [[0, 'Всё'], ...DC_GENRES[dc.mt]].map(([id, name]) =>
         `<button type="button" class="dc-chip${dc.genre === id ? ' active' : ''}" data-dc-genre="${id}">${escapeHtml(name)}</button>`).join('');
     const browse = $('dcBrowse');
     if (browse) browse.hidden = Boolean(dc.q);
+    // В поиске — только результаты, без подборок
+    if ($('dcTrend') && dc.q) $('dcTrend').hidden = true;
+    if ($('dcGridHeading')) {
+        $('dcGridHeading').hidden = Boolean(dc.q);
+        const genre = DC_GENRES[dc.mt].find(([id]) => id === dc.genre);
+        $('dcGridTitle').textContent = genre ? `🏆 Культовые: ${genre[1].toLowerCase()}` : `🏆 Культовые ${dc.mt === 'tv' ? 'сериалы' : 'фильмы'}`;
+        $('dcTrendTitle').textContent = genre ? `🔥 Популярно сейчас: ${genre[1].toLowerCase()}` : '🔥 Сейчас в тренде';
+    }
+}
+
+// Карточки TMDB без телефильмов и без постера (уже добавленные — с отметкой)
+function browseItems(data, mt) {
+    return (data?.results || [])
+        .filter(raw => raw.poster_path && !raw.adult && !(raw.genre_ids || []).includes(TV_MOVIE_GENRE))
+        .map(raw => tmdbItem(raw, raw.media_type || mt));
 }
 
 function dcSkeleton(n = 12) {
     return '<div class="skeleton"></div>'.repeat(n);
+}
+
+// Сверху — что смотрят сейчас (тренды недели или популярное в жанре),
+// ниже — культовое: самое известное за всё время, его чаще всего уже видели
+function trendRequest() {
+    return dc.genre
+        ? { path: `discover/${dc.mt}`, params: { language: 'ru-RU', sort_by: 'popularity.desc', with_genres: dc.genre, 'vote_count.gte': dc.mt === 'tv' ? 50 : 100, include_adult: 'false' } }
+        : { path: `trending/${dc.mt}/week`, params: { language: 'ru-RU' } };
+}
+
+function cultRequest() {
+    const params = { language: 'ru-RU', sort_by: 'vote_count.desc', include_adult: 'false', page: dc.page };
+    if (dc.genre) params.with_genres = dc.genre;
+    return { path: `discover/${dc.mt}`, params };
 }
 
 async function loadDiscover(reset) {
@@ -369,25 +409,37 @@ async function loadDiscover(reset) {
     const token = ++dc.token;
     if (reset) {
         dc.page = 1;
-        dc.list = [];
         grid.innerHTML = dcSkeleton();
+        $('dcTrend').hidden = false;
+        $('dcTrendRow').innerHTML = dcSkeleton(4);
     }
     $('dcMore').hidden = true;
     try {
-        // Самые известные — их чаще всего уже видели
-        const params = { language: 'ru-RU', sort_by: 'vote_count.desc', include_adult: 'false', page: dc.page };
-        if (dc.genre) params.with_genres = dc.genre;
-        const data = await tmdbGet(`discover/${dc.mt}`, params);
-        if (token !== dc.token) return;
-        const fresh = (data.results || []).filter(raw => raw.poster_path).map(raw => tmdbItem(raw, dc.mt));
-        dc.list.push(...fresh);
-        dc.more = data.page < Math.min(data.total_pages || 1, 15);
-        if (reset) grid.innerHTML = '';
+        let cult;
+        if (reset) {
+            const [trend, first] = await tmdbBatch([trendRequest(), cultRequest()]);
+            if (token !== dc.token) return;
+            if (first?.error) throw new Error(first.error);
+            const trendList = trend?.error ? [] : browseItems(trend, dc.mt).slice(0, 20);
+            dc.trendKeys = new Set(trendList.map(r => r.key));
+            $('dcTrendRow').innerHTML = trendList.map(r => tcard(r)).join('');
+            $('dcTrend').hidden = !trendList.length;
+            markScrollableRows();
+            cult = first;
+            grid.innerHTML = '';
+        } else {
+            cult = await tmdbGet(cultRequest().path, cultRequest().params);
+            if (token !== dc.token) return;
+        }
+        // То, что уже есть в ряду трендов, в сетке не повторяем
+        const fresh = browseItems(cult, dc.mt).filter(r => !dc.trendKeys.has(r.key));
+        dc.more = cult.page < Math.min(cult.total_pages || 1, 15);
         grid.insertAdjacentHTML('beforeend', fresh.map(r => tcard(r)).join(''));
         $('dcMore').hidden = !dc.more;
     } catch (err) {
         if (token !== dc.token) return;
         console.error(err);
+        $('dcTrend').hidden = true;
         grid.innerHTML = `<div class="empty-state error">Не удалось загрузить фильмы.<br><button type="button" class="btn-pill" data-dc-retry>Попробовать ещё раз</button></div>`;
     }
     updateDcBar();
