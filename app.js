@@ -2,7 +2,7 @@ const VIEW_TITLES = {
     main: 'Главная', movies: 'Фильмы', series: 'Сериалы', cartoons: 'Мультфильмы',
     top100: 'ТОП 100', new: 'Новинки', recent: 'Недавно добавлено', rewatch: 'Пересматриваем любимое',
     best: 'Лучшее', collections: 'Подборки', account: 'Аккаунт',
-    discover: 'Добавить фильмы', recs: 'Рекомендации'
+    discover: 'Добавить фильмы', recs: 'Рекомендации', tastes: 'Мои интересы'
 };
 // Готовые подборки на вкладке «Подборки» (свои списки добавляются следом)
 const COLLECTIONS = [
@@ -313,6 +313,24 @@ function renderView() {
         renderCollections();
         return;
     }
+    // Интересы — tastes.js: при первом входе в свою коллекцию сначала выбор тем
+    if (state.view === 'tastes' && !state.q) {
+        renderTastes(false);
+        return;
+    }
+    if (isMine() && !state.q && ['main', 'discover', 'recs'].includes(state.view)) {
+        const taste = tasteState();
+        if (taste === 'unknown') {
+            grid.className = 'grid';
+            grid.innerHTML = '<div class="skeleton"></div>'.repeat(6);
+            ensureTastes().then(rerenderView);
+            return;
+        }
+        if (taste === 'missing' && state.view === 'main') {
+            renderTastes(true);
+            return;
+        }
+    }
     // Быстрое добавление и рекомендации — discover.js
     if (state.view === 'recs' && !state.q) {
         renderRecs();
@@ -364,7 +382,7 @@ function updateChrome() {
     $('pageTitle').textContent = title;
     if (!state.film) document.title = isMain ? collectionTitle() : `${title} — ${collectionTitle()}`;
 
-    $('filtersBar').hidden = isMain || (['account', 'collections', 'discover', 'recs'].includes(state.view) && !state.q);
+    $('filtersBar').hidden = isMain || (['account', 'collections', 'discover', 'recs', 'tastes'].includes(state.view) && !state.q);
     $('backToMain').hidden = isMain;
     $('genreSelect').value = state.genre;
     $('sortSelect').value = state.sort;
@@ -614,6 +632,7 @@ function renderAccount() {
         <div class="account-menu">
             <a class="account-row" href="?view=discover" data-nav><span>⚡</span>Быстро добавить и оценить<i>›</i></a>
             <a class="account-row" href="?view=recs" data-nav><span>✨</span>Рекомендации<i>›</i></a>
+            <a class="account-row" href="?view=tastes" data-nav><span>🏷</span>Мои интересы<i>›</i></a>
         </div>
 
         <h3 class="account-heading">Админка</h3>

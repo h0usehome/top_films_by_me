@@ -592,6 +592,23 @@ html.tg .header .back-btn { display: none; }
 .sheet-btn.is-on { color: var(--gold); }
 .sheet-btn-danger { color: #ff4d55; }
 
+/* ---------- Интересы (tastes.js) ---------- */
+
+.taste-group { margin-bottom: 20px; }
+.taste-group h3 { margin-bottom: 10px; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.taste-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.taste-chip {
+    min-height: 40px; padding: 0 14px; border-radius: 20px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    font-size: 15px; font-weight: 600; line-height: 1.2;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.taste-chip:active { transform: scale(0.96); }
+.taste-chip.active { background: var(--primary); border-color: var(--primary); }
+.taste-bar .btn-pill:disabled { opacity: 0.45; }
+.taste-summary { margin-bottom: 16px; color: var(--muted); font-size: 13px; }
+.taste-summary a { color: #ff6b72; font-weight: 600; }
+
 /* ---------- Уведомление ---------- */
 
 .toast {

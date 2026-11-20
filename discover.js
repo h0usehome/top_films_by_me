@@ -61,6 +61,7 @@ function tmdbItem(raw, mt) {
         vote: raw.vote_average ? Math.round(raw.vote_average * 10) / 10 : null,
         votes: raw.vote_count || 0,
         genres: raw.genre_ids || [],
+        lang: raw.original_language || '',
         cartoon: (raw.genre_ids || []).includes(16)
     };
     dcSeen.set(item.key, item);
@@ -71,16 +72,16 @@ function tmdbItem(raw, mt) {
 const TV_MOVIE_GENRE = 10770;
 
 // Отсекаем телефильмы и малоизвестное с низким рейтингом — TMDB любит их подмешивать
-function goodEnough(raw, mt) {
+function goodEnough(raw, mt, minVotes) {
     if (!raw.poster_path || raw.adult || (raw.genre_ids || []).includes(TV_MOVIE_GENRE)) return false;
-    return (raw.vote_count || 0) >= (mt === 'tv' ? 80 : 150) && (raw.vote_average || 0) >= 6.2;
+    return (raw.vote_count || 0) >= (minVotes ?? (mt === 'tv' ? 80 : 150)) && (raw.vote_average || 0) >= 6.2;
 }
 
-function cleanResults(data, mt, limit = 20, strict = true) {
+function cleanResults(data, mt, limit = 20, strict = true, minVotes) {
     return (data?.results || [])
         .map(raw => ({ raw, mt: raw.media_type || mt }))
         .filter(({ raw, mt }) => (mt === 'movie' || mt === 'tv') && raw.poster_path && !raw.adult
-            && !(raw.genre_ids || []).includes(TV_MOVIE_GENRE) && (!strict || goodEnough(raw, mt)))
+            && !(raw.genre_ids || []).includes(TV_MOVIE_GENRE) && (!strict || goodEnough(raw, mt, minVotes)))
         .map(({ raw, mt }) => tmdbItem(raw, mt))
         .filter(r => !findOwned(r))
         .slice(0, limit);
@@ -336,6 +337,7 @@ function renderDiscover() {
             </div>
             <div class="dc-chips" id="dcChips"></div>
         </div>
+        <section class="home-section" id="dcTaste" hidden></section>
         <section class="home-section" id="dcTrend" hidden>
             <div class="home-section-header"><div class="section-heading">
                 <span class="section-kicker">Новинки, которые смотрят сейчас</span>
@@ -370,6 +372,7 @@ function syncDcControls() {
     if (browse) browse.hidden = Boolean(dc.q);
     // В поиске — только результаты, без подборок
     if ($('dcTrend') && dc.q) $('dcTrend').hidden = true;
+    if ($('dcTaste') && (dc.q || dc.genre)) $('dcTaste').hidden = true;
     if ($('dcGridHeading')) {
         $('dcGridHeading').hidden = Boolean(dc.q);
         const genre = DC_GENRES[dc.mt].find(([id]) => id === dc.genre);
@@ -425,6 +428,7 @@ async function loadDiscover(reset) {
             $('dcTrendRow').innerHTML = trendList.map(r => tcard(r)).join('');
             $('dcTrend').hidden = !trendList.length;
             markScrollableRows();
+            if (!dc.genre) fillDiscoverTastes(token);
             cult = first;
             grid.innerHTML = '';
         } else {
@@ -443,6 +447,31 @@ async function loadDiscover(reset) {
         grid.innerHTML = `<div class="empty-state error">Не удалось загрузить фильмы.<br><button type="button" class="btn-pill" data-dc-retry>Попробовать ещё раз</button></div>`;
     }
     updateDcBar();
+}
+
+// «Под ваши интересы» — между трендами и культовым, только в «Всё»
+async function fillDiscoverTastes(token) {
+    const el = $('dcTaste');
+    if (!el || tasteState() !== 'set' || !tastes.tags.length) return;
+    try {
+        const data = await getRecs();
+        if (token !== dc.token || !document.contains(el)) return;
+        const list = (data.tasteMix || []).filter(r => !dc.trendKeys.has(r.key)).slice(0, 20);
+        if (!list.length) return;
+        el.innerHTML = `
+            <div class="home-section-header">
+                <div class="section-heading">
+                    <span class="section-kicker">По вашим интересам</span>
+                    <h2>✨ Вам может понравиться</h2>
+                </div>
+                <a class="see-all" href="?view=tastes" data-nav>Изменить</a>
+            </div>
+            <div class="home-row">${list.map(r => tcard(r, r.reason)).join('')}</div>`;
+        el.hidden = false;
+        markScrollableRows();
+    } catch (err) {
+        console.error(err);
+    }
 }
 
 async function runSearch(q) {
@@ -503,7 +532,7 @@ function recsSignature() {
     const s = items.map(i => `${i.id}:${i.rating ?? ''}:${inWantList(i) ? 1 : 0}`).sort().join(',');
     let h = 0;
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-    return `${today()}:${items.length}:${h}`;
+    return `${today()}:${items.length}:${h}:${tastes.tags.join(',')}`;
 }
 
 function getRecs() {
@@ -529,7 +558,7 @@ function getRecs() {
 const byRecent = (a, b) => new Date(b.created_at) - new Date(a.created_at);
 
 // На чём строить: оценки 7+, затем отложенное и недавнее
-const SEED_COUNT = 10;
+const SEED_COUNT = 9;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Основа подборки: из всех оценённых на 7+. Шанс выше у высоких оценок и свежих
@@ -624,20 +653,28 @@ function favoriteGenre() {
 }
 
 async function buildRecs() {
+    // Ряды по интересам грузятся параллельно с остальным
+    const tastePromise = tasteState() === 'set' && tastes.tags.length
+        ? loadTasteRows().catch(err => { console.error(err); return []; })
+        : Promise.resolve([]);
+
     if (!items.length) {
-        const [trending, movies, tv] = await tmdbBatch([
+        const [[trending, movies, tv], tasteRows] = await Promise.all([tmdbBatch([
             { path: 'trending/all/week', params: { language: 'ru-RU' } },
             { path: 'discover/movie', params: { language: 'ru-RU', sort_by: 'vote_count.desc' } },
             { path: 'discover/tv', params: { language: 'ru-RU', sort_by: 'vote_count.desc' } }
-        ]);
+        ]), tastePromise]);
+        const tasteMix = mixTasteRows(tasteRows);
         return {
             cold: true,
-            forYou: [],
+            forYou: tasteMix,
+            tasteMix,
             because: [],
             rows: [
-                { title: 'Сейчас в тренде', items: cleanResults(trending, 'movie', 20, false) },
-                { title: 'Фильмы, которые видели все', items: cleanResults(movies, 'movie') },
-                { title: 'Сериалы, которые видели все', items: cleanResults(tv, 'tv') }
+                ...tasteRows.slice(0, 3),
+                { title: '🔥 Сейчас в тренде', items: cleanResults(trending, 'movie', 20, false) },
+                { kicker: 'Самое известное', title: '🏆 Фильмы, которые видели все', items: cleanResults(movies, 'movie') },
+                { kicker: 'Самое известное', title: '🏆 Сериалы, которые видели все', items: cleanResults(tv, 'tv') }
             ]
         };
     }
@@ -648,10 +685,11 @@ async function buildRecs() {
     const genre = favoriteGenre();
     const requests = [
         ...ready.map(s => ({ path: `${s.tmdb_type || 'movie'}/${s.tmdb_id}/recommendations`, params: { language: 'ru-RU' } })),
-        { path: 'trending/all/week', params: { language: 'ru-RU' } }
+        { path: 'trending/all/week', params: { language: 'ru-RU' } },
+        { path: 'discover/movie', params: { language: 'ru-RU', sort_by: 'vote_count.desc' } }
     ];
     if (genre) requests.push({ path: 'discover/movie', params: { language: 'ru-RU', with_genres: genre.id, sort_by: 'vote_average.desc', 'vote_count.gte': 1500 } });
-    const results = await tmdbBatch(requests);
+    const [results, tasteRows] = await Promise.all([tmdbBatch(requests), tastePromise]);
 
     // Вклад «источника»: оценка (7 → 0.6, 10 → 1) и место в его списке похожих.
     // Похожее сразу на несколько ваших фильмов и любимые жанры поднимаются выше.
@@ -683,10 +721,21 @@ async function buildRecs() {
         const n = perSeed.get(e.seeds[0]) || 0;
         if (head.length < 12 && n < 2) { head.push(e); perSeed.set(e.seeds[0], n + 1); } else tail.push(e);
     });
-    const forYou = [...head, ...tail].slice(0, 30).map(e => ({
+    const byRatings = [...head, ...tail].slice(0, 30).map(e => ({
         ...e.r,
         reason: e.seeds.length > 1 ? `Похоже на «${e.seeds[0].title}» и «${e.seeds[1].title}»` : `Похоже на «${e.seeds[0].title}»`
     }));
+
+    // Пока оценок мало, интересы идут через одну карточку; дальше — каждая четвёртая
+    const tasteMix = mixTasteRows(tasteRows).filter(r => !scores.has(r.key));
+    const rated = items.filter(i => i.rating != null).length;
+    const step = rated < 3 ? 2 : 4;
+    const forYou = [];
+    for (let i = 0, t = 0; forYou.length < 30 && (i < byRatings.length || t < tasteMix.length);) {
+        if ((forYou.length + 1) % step === 0 && t < tasteMix.length) forYou.push(tasteMix[t++]);
+        else if (i < byRatings.length) forYou.push(byRatings[i++]);
+        else forYou.push(tasteMix[t++]);
+    }
 
     // Ряды «Потому что вам понравился…» — каждый день про разные фильмы
     const because = ready
@@ -694,11 +743,12 @@ async function buildRecs() {
         .filter(b => b.items.length >= 4)
         .sort((a, b) => a.order - b.order)
         .slice(0, 2);
-    const rows = [];
-    if (genre) rows.push({ kicker: 'Ваш любимый жанр', title: genre.title, items: cleanResults(results[ready.length + 1], 'movie') });
-    rows.push({ title: 'Сейчас в тренде', items: cleanResults(results[ready.length], 'movie', 20, false) });
+    const rows = [...tasteRows.slice(0, 3)];
+    if (genre) rows.push({ kicker: 'Ваш любимый жанр', title: genre.title, items: cleanResults(results[ready.length + 2], 'movie') });
+    rows.push({ title: '🔥 Сейчас в тренде', items: cleanResults(results[ready.length], 'movie', 20, false) });
+    rows.push({ kicker: 'Если вдруг пропустили', title: '🏆 Культовые фильмы', items: cleanResults(results[ready.length + 1], 'movie') });
 
-    return { cold: !ready.length, forYou, because, rows: rows.filter(r => r.items.length) };
+    return { cold: !ready.length, forYou, tasteMix, because, rows: rows.filter(r => r.items.length) };
 }
 
 // Убираем то, что успели добавить после расчёта
@@ -746,6 +796,7 @@ async function renderRecs() {
         </section>` : '';
     const forYou = notOwned(data.forYou);
     grid.innerHTML = `
+        ${tasteSummaryHtml()}
         ${hint}
         ${forYou.length ? `<h2 class="coll-heading">✨ Для вас</h2>
             <div class="grid recs-grid">${forYou.slice(0, 12).map(r => tcard(r, r.reason)).join('')}</div>` : ''}

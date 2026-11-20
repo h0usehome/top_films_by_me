@@ -19,9 +19,9 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...CORS, 'content-type': 'application/json' } });
 
-// Поиск и карточки — для админки; подборки и «похожие» — для онбординга и рекомендаций
+// Поиск и карточки — для админки; подборки, «похожие» и ключевые слова — для онбординга и рекомендаций
 const ALLOWED = [
-    /^search\/(multi|movie|tv)$/,
+    /^search\/(multi|movie|tv|keyword)$/,
     /^(movie|tv)\/\d+$/,
     /^(movie|tv)\/\d+\/(videos|recommendations)$/,
     /^(movie|tv)\/(popular|top_rated)$/,
@@ -31,7 +31,10 @@ const ALLOWED = [
 ];
 const ALLOWED_PARAMS = [
     'query', 'language', 'include_adult', 'year', 'page', 'append_to_response', 'include_video_language',
-    'region', 'sort_by', 'with_genres', 'without_genres', 'vote_count.gte', 'vote_average.gte', 'with_original_language'
+    'region', 'sort_by', 'with_genres', 'without_genres', 'vote_count.gte', 'vote_average.gte', 'with_original_language',
+    // теги интересов: темы (ключевые слова), годы, длительность, мини-сериалы
+    'with_keywords', 'without_keywords', 'with_origin_country', 'with_type', 'with_runtime.gte', 'with_runtime.lte',
+    'primary_release_date.gte', 'primary_release_date.lte', 'first_air_date.gte', 'first_air_date.lte'
 ];
 const BATCH_LIMIT = 12;
 
