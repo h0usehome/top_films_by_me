@@ -191,7 +191,7 @@ function renderTastes(first) {
     updateTasteBar(first);
 }
 
-function updateTasteBar(first = $('contentGrid').querySelector('[data-taste-skip]') !== null) {
+function updateTasteBar(first = state.view !== 'tastes') {
     const count = $('tasteCount');
     if (!count) return;
     const n = tasteDraft.size;
@@ -200,6 +200,9 @@ function updateTasteBar(first = $('contentGrid').querySelector('[data-taste-skip
         : `Выбрано ${n} ${plural(n, 'тема', 'темы', 'тем')}`;
     const save = document.querySelector('[data-taste-save]');
     if (save) save.disabled = first ? n < TASTE_MIN : false;
+    // Выбрал хоть что-то — «Пропустить» уже не нужна
+    const skip = document.querySelector('[data-taste-skip]');
+    if (skip) skip.hidden = n > 0;
 }
 
 function rerenderView() {
