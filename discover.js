@@ -88,7 +88,7 @@ function cleanResults(data, mt, limit = 20, strict = true, minVotes) {
         .filter(({ raw, mt }) => (mt === 'movie' || mt === 'tv') && raw.poster_path && !raw.adult
             && !(raw.genre_ids || []).includes(TV_MOVIE_GENRE) && (!strict || goodEnough(raw, mt, minVotes)))
         .map(({ raw, mt }) => tmdbItem(raw, mt))
-        .filter(r => !findOwned(r))
+        .filter(r => !findOwned(r) && !hiddenRecommendations().has(r.key))
         .slice(0, limit);
 }
 
@@ -126,7 +126,7 @@ async function dbWrite(method, path, body) {
 
 // ---------- Добавление и оценка ----------
 
-async function addFromTmdb(r, { rating = null, want = false }) {
+async function addFromTmdb(r, { rating = null, want = false, review = '' }) {
     if (dcPending.has(r.key)) return;
     dcPending.set(r.key, { rating, want });
     refreshCards(r.key);
@@ -143,18 +143,19 @@ async function addFromTmdb(r, { rating = null, want = false }) {
             description: d ? detailsDescription(d) : r.overview,
             trailer: d?.trailer || '',
             customlists: want ? WANT_LIST : '',
-            review: '',
+            review,
             rewatch: false,
             tmdb_id: r.id,
             tmdb_type: r.mt
         };
         const [row] = await dbWrite('POST', 'collection', payload);
-        row.details = { description: row.description || '', review: '' };
+        row.details = { description: row.description || '', review: row.review ?? review };
         items.unshift(row);
         dc.added++;
         onItemsChanged();
         if (want) toast('Добавлено в «Хочу посмотреть»', true);
         window.tgApp?.HapticFeedback?.notificationOccurred?.('success');
+        return true;
     } catch (err) {
         console.error(err);
         toast(`Не получилось добавить «${r.title}»: ${err.message}`);
@@ -166,19 +167,29 @@ async function addFromTmdb(r, { rating = null, want = false }) {
 }
 
 async function updateOwned(item, patch, r) {
+    if (filmWrites.has(item.id)) return false;
+    filmWrites.add(item.id);
     const before = { ...item };
     Object.assign(item, patch);
     if (r) refreshCards(r.key);
     try {
         const [row] = await dbWrite('PATCH', `collection?id=eq.${encodeURIComponent(item.id)}`, patch);
-        if (row) Object.assign(item, row);
+        if (!row) throw new Error('Запись не найдена');
+        Object.assign(item, row);
+        if (Object.hasOwn(patch, 'review')) {
+            item.details = { description: row.description || '', review: row.review ?? patch.review };
+        }
         onItemsChanged();
         if (!inWantList(before) && inWantList(item)) toast('Добавлено в «Хочу посмотреть»', true);
+        return true;
     } catch (err) {
         Object.assign(item, before);
         toast(`Не получилось сохранить: ${err.message}`);
+        return false;
+    } finally {
+        filmWrites.delete(item.id);
+        if (r) refreshCards(r.key);
     }
-    if (r) refreshCards(r.key);
 }
 
 async function removeOwned(item, r) {
@@ -197,8 +208,12 @@ function rate(r, rating) {
     const owned = findOwned(r);
     if (owned?.pending) return;
     // Посмотрел то, что откладывал, — убираем из «Хочу посмотреть»
-    if (owned) updateOwned(owned, { rating, customlists: splitList(owned.customlists).filter(n => n !== WANT_LIST).join(', ') }, r);
+    if (owned) updateOwned(owned, watchedPatch(owned, rating), r);
     else addFromTmdb(r, { rating });
+}
+
+function watchedPatch(item, rating) {
+    return { rating, customlists: splitList(item.customlists).filter(name => name !== WANT_LIST).join(', ') };
 }
 
 function toggleWant(r) {
@@ -259,6 +274,7 @@ function openPickSheet(r) {
     const owned = findOwned(r);
     const meta = [r.year, dcTypeName(r), r.vote ? `TMDB ★ ${r.vote}` : ''].filter(Boolean).join(' • ');
     const rated = owned?.rating != null;
+    const hidden = hiddenRecommendations().has(r.key);
     showSheet(`
         <div class="sheet-head">
             ${posterImg(r.poster, { size: 'small', lazy: false, cls: 'sheet-poster' })}
@@ -277,10 +293,69 @@ function openPickSheet(r) {
             ${rated || !isMine() ? '' : `<button type="button" class="sheet-btn${inWantList(owned) ? ' is-on' : ''}" data-dc-want>
                 🔖 ${inWantList(owned) ? 'В списке «Хочу посмотреть»' : 'Хочу посмотреть'}</button>`}
             <button type="button" class="sheet-btn" data-dc-trailer>▶ Трейлер</button>
+            ${isMine() && !owned?.pending ? '<button type="button" class="sheet-btn" data-dc-review aria-expanded="false" aria-controls="dcReviewForm">Написать рецензию</button>' : ''}
             ${owned && !owned.pending ? `<button type="button" class="sheet-btn" data-dc-open="${escapeHtml(owned.id)}">Открыть карточку</button>
                 ${isMine() ? '<button type="button" class="sheet-btn sheet-btn-danger" data-dc-remove>Удалить из коллекции</button>' : ''}` : ''}
         </div>
-        <button type="button" class="sheet-cancel" data-sheet-action="close">${owned || !isMine() ? 'Закрыть' : 'Не смотрел'}</button>`, 'Оценка фильма');
+        ${isMine() && !owned?.pending ? `
+            <form class="film-review" id="dcReviewForm" hidden>
+                <textarea name="review" rows="4" aria-label="Рецензия" placeholder="Ваше мнение о просмотренном" required></textarea>
+                <select class="select" name="rating" aria-label="Оценка для рецензии" required>
+                    <option value="">Поставьте оценку</option>
+                    ${Array.from({ length: 10 }, (_, index) => index + 1).map(n =>
+                        `<option${Number(owned?.rating) === n ? ' selected' : ''}>${n}</option>`).join('')}
+                </select>
+                <button type="submit" class="btn-pill btn-pill-primary">Сохранить рецензию</button>
+            </form>
+            <button type="button" class="sheet-cancel" data-dc-recommend>${hidden ? 'Снова советовать' : 'Не советовать'}</button>` : ''}
+        <button type="button" class="sheet-cancel" data-sheet-action="close">Закрыть</button>`, 'Оценка фильма');
+}
+
+async function togglePickReview(button) {
+    const form = $('dcReviewForm');
+    const owned = findOwned(dcSheet);
+    const review = form.elements.review;
+    form.hidden = !form.hidden;
+    button.setAttribute('aria-expanded', String(!form.hidden));
+    if (form.hidden) return;
+    if (owned && !form.dataset.loaded && !review.disabled) {
+        review.disabled = true;
+        form.querySelector('[type="submit"]').disabled = true;
+        try {
+            review.value = (await loadDetails(owned)).review;
+            form.dataset.loaded = '1';
+        } catch {
+            form.hidden = true;
+            button.setAttribute('aria-expanded', 'false');
+            toast('Не удалось загрузить рецензию. Попробуйте ещё раз.');
+        } finally {
+            review.disabled = false;
+            form.querySelector('[type="submit"]').disabled = false;
+        }
+    }
+    if (form.isConnected && !form.hidden && !review.disabled) review.focus();
+}
+
+async function savePickReview(form, button) {
+    const r = dcSheet;
+    if (!r || !isMine() || button.disabled) return;
+    const owned = findOwned(r);
+    if (owned?.pending) return;
+    const review = form.elements.review.value.trim();
+    if (!review) { toast('Введите текст рецензии'); return; }
+    const rating = Number(form.elements.rating.value);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 10) return;
+    button.disabled = true;
+    try {
+        const saved = owned
+            ? await updateOwned(owned, { ...watchedPatch(owned, rating), review }, r)
+            : await addFromTmdb(r, { rating, review });
+        if (!saved) return;
+        if (form.isConnected && dcSheet === r) closeSheet(true);
+        toast('Рецензия сохранена');
+    } finally {
+        button.disabled = false;
+    }
 }
 
 // То же нижнее меню, что и у карточек коллекции (кнопка «Назад» и Esc его закрывают)
@@ -402,7 +477,8 @@ function catalogRequests(type, params) {
     });
 }
 
-function catalogItems(results, type) {
+function catalogItems(results, type, { includeHidden = false } = {}) {
+    const hidden = hiddenRecommendations();
     const animation = type === 'animation';
     const seen = new Set();
     const media = DISCOVER_TYPES[type].media;
@@ -412,7 +488,7 @@ function catalogItems(results, type) {
         : lists.flat();
     return combined.filter(item => {
         if (!item) return false;
-        if (!media.includes(item.mt) || item.cartoon !== animation || seen.has(item.key)) return false;
+        if (!media.includes(item.mt) || item.cartoon !== animation || seen.has(item.key) || (!includeHidden && hidden.has(item.key))) return false;
         seen.add(item.key);
         return true;
     });
@@ -515,7 +591,7 @@ async function loadDiscover() {
             .sort((a, b) => genreAffinity(b.genres, weights) - genreAffinity(a.genres, weights));
         const seen = new Set();
         const picks = [...tailored, ...fallback].filter(item => {
-            if (seen.has(item.key) || findOwned(item)) return false;
+            if (seen.has(item.key) || findOwned(item) || hiddenRecommendations().has(item.key)) return false;
             seen.add(item.key);
             return true;
         });
@@ -568,7 +644,7 @@ async function runSearch(q) {
             path: `search/${mt}`, params: { query: q, language, include_adult: 'false' }
         })));
         if (results.length === 0 || results.every(result => !result || result.error)) throw new Error('Поиск недоступен');
-        return catalogItems(results, type);
+        return catalogItems(results, type, { includeHidden: true });
     };
     grid.innerHTML = dcSkeleton(6);
     try {
@@ -607,6 +683,37 @@ function finishDiscover() {
 // ---------- Рекомендации ----------
 
 const recsStorageKey = () => `recs2:${me?.id || ''}`;
+let hiddenRecsKey;
+let hiddenRecs = new Set();
+
+function hiddenRecommendations() {
+    const key = `hidden-recs:${me?.id || ''}`;
+    if (key !== hiddenRecsKey) {
+        hiddenRecsKey = key;
+        hiddenRecs = new Set();
+        try {
+            const saved = JSON.parse(localStorage.getItem(key));
+            if (Array.isArray(saved)) hiddenRecs = new Set(saved);
+        } catch { /* локальное хранилище недоступно */ }
+    }
+    return hiddenRecs;
+}
+
+function toggleRecommendation(r) {
+    const hidden = hiddenRecommendations();
+    const restored = hidden.delete(r.key);
+    if (!restored) hidden.add(r.key);
+    try { localStorage.setItem(hiddenRecsKey, JSON.stringify([...hidden])); } catch { /* действует до перезагрузки */ }
+    closeSheet(true);
+    toast(restored ? `«${r.title}» снова может появляться в рекомендациях` : `«${r.title}» скрыто из рекомендаций`);
+    if (state.film) {
+        const item = findItem(state.film);
+        if (item) fillSimilar(item);
+    }
+    if (state.view === 'recs') renderRecs();
+    if ($('dcShelves') && !dc.q) loadDiscover();
+}
+
 const today = () => new Date().toISOString().slice(0, 10);
 
 // «Случайность», одинаковая в течение дня: подборка не прыгает при каждом открытии,
@@ -619,7 +726,8 @@ function dailyRandom(salt) {
 }
 
 function recsSignature() {
-    const s = items.map(i => `${i.id}:${i.rating ?? ''}:${inWantList(i) ? 1 : 0}`).sort().join(',');
+    const collection = items.map(i => `${i.id}:${i.rating ?? ''}:${inWantList(i) ? 1 : 0}`).sort().join(',');
+    const s = `${collection}|${[...hiddenRecommendations()].sort().join(',')}`;
     let h = 0;
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
     return `${today()}:${items.length}:${h}:${tastes.tags.join(',')}`;
@@ -791,7 +899,7 @@ async function buildRecs() {
             const mt = raw.media_type || seed.tmdb_type || 'movie';
             if ((mt !== 'movie' && mt !== 'tv') || !goodEnough(raw, mt)) return;
             const r = tmdbItem(raw, mt);
-            if (findOwned(r)) return;
+            if (findOwned(r) || hiddenRecommendations().has(r.key)) return;
             const add = weight * (1 - idx / 25);
             const entry = scores.get(r.key) || { r, score: 0, best: 0, seeds: [] };
             entry.score += add;
@@ -842,7 +950,8 @@ async function buildRecs() {
 }
 
 // Убираем то, что успели добавить после расчёта
-const notOwned = (list) => (list || []).filter(r => !findOwned(r) || dcPending.has(r.key));
+const notOwned = (list) => (list || []).filter(r =>
+    !hiddenRecommendations().has(r.key) && (!findOwned(r) || dcPending.has(r.key)));
 
 function recsRowHtml({ title, kicker = '', items: list }) {
     const shown = notOwned(list);
@@ -915,16 +1024,17 @@ async function fillSimilar(item) {
             mediaType = match.media_type;
         }
         const results = await tmdbGet(`${mediaType}/${id}/recommendations`, { language: 'ru-RU' });
-        return browseItems(results, mediaType).filter(result => result.mt === mediaType && result.id !== id).slice(0, 10);
+        return browseItems(results, mediaType).filter(result => result.mt === mediaType && result.id !== id);
     })();
     try {
-        const similar = await item.similarRequest;
-        if (!similar.length || !section.isConnected || String(state.film) !== String(item.id)) return;
+        const similar = (await item.similarRequest).filter(result => !hiddenRecommendations().has(result.key)).slice(0, 10);
+        if (!section.isConnected || String(state.film) !== String(item.id)) return;
+        section.hidden = !similar.length;
+        if (!similar.length) return;
         section.innerHTML = `<h3>Похожее</h3><div class="home-row">${similar.map(result => {
             const owned = findOwned(result);
             return owned && !owned.pending ? card(owned) : tcard(result);
         }).join('')}</div>`;
-        section.hidden = false;
         markScrollableRows();
     } catch {
         delete item.similarRequest;
@@ -947,8 +1057,17 @@ document.addEventListener('click', (e) => {
     const pick = e.target.closest('[data-dc-pick]');
     if (pick) { const r = dcSeen.get(pick.dataset.dcPick); if (r) openPickSheet(r); return; }
 
+    const review = e.target.closest('[data-dc-review]');
+    if (review && dcSheet) { togglePickReview(review); return; }
+    if (e.target.closest('[data-dc-recommend]') && dcSheet && isMine()) { toggleRecommendation(dcSheet); return; }
+
     const rateBtn = e.target.closest('[data-dc-rate]');
     if (rateBtn && dcSheet) {
+        const form = $('dcReviewForm');
+        if (form && !form.hidden) {
+            form.elements.rating.value = rateBtn.dataset.dcRate;
+            return;
+        }
         const r = dcSheet;
         rateBtn.classList.add('active');
         closeSheet();
@@ -1000,6 +1119,11 @@ document.addEventListener('input', (e) => {
 });
 
 document.addEventListener('submit', (e) => {
+    if (e.target.id === 'dcReviewForm') {
+        e.preventDefault();
+        savePickReview(e.target, e.submitter || e.target.querySelector('[type="submit"]'));
+        return;
+    }
     if (e.target.id !== 'dcSearchForm') return;
     e.preventDefault();
     e.target.querySelector('input').blur();
