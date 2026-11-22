@@ -313,6 +313,18 @@ function renderView() {
     renderGenreOptions();
     updateChrome();
 
+    if (isMine() && !state.q && ['main', 'discover', 'recs'].includes(state.view)) {
+        const taste = tasteState();
+        if (taste === 'unknown') {
+            showSkeleton();
+            ensureTastes().then(rerenderView);
+            return;
+        }
+        if (state.view === 'main' && taste === 'missing') {
+            renderTastes(true);
+            return;
+        }
+    }
     if (state.view === 'account' && !state.q) {
         renderAccount();
         return;
@@ -328,15 +340,6 @@ function renderView() {
     if (state.view === 'tastes' && !state.q) {
         renderTastes(false);
         return;
-    }
-    if (isMine() && !state.q && ['discover', 'recs'].includes(state.view)) {
-        const taste = tasteState();
-        if (taste === 'unknown') {
-            grid.className = 'grid';
-            grid.innerHTML = '<div class="skeleton"></div>'.repeat(6);
-            ensureTastes().then(rerenderView);
-            return;
-        }
     }
     // Быстрое добавление и рекомендации — discover.js
     if (state.view === 'recs' && !state.q) {
