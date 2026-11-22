@@ -213,16 +213,19 @@ html.tg .header .back-btn { display: none; }
 }
 .card-link, .tcard-btn { display: block; width: 100%; padding: 0; text-align: left; }
 .card .poster, .tcard .poster {
-    display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover;
+    display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: cover;
     border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
 }
 .card-caption, .tcard-caption { display: block; padding: 9px 9px 11px; }
-.card-meta, .tcard-meta { display: block; }
-.card-title {
-    font-size: 14px; font-weight: 800; line-height: 1.2; margin-bottom: 4px;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+.card-title, .tcard-title {
+    font-size: 14px; font-weight: 800; line-height: 1.2; block-size: 2.4em; margin-bottom: 4px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; overflow-wrap: anywhere;
 }
-.card-meta { font-size: 12px; color: #b0b0b0; font-weight: 600; }
+.card-meta, .tcard-meta {
+    display: block; font-size: 12px; color: #b0b0b0; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .card-badge {
     position: absolute; top: 8px; right: 8px;
     padding: 3px 7px; border-radius: 7px;
@@ -509,11 +512,6 @@ html.tg .header .back-btn { display: none; }
 /* Карточка фильма из TMDB */
 .home-row .tcard { flex: 0 0 var(--row-card); scroll-snap-align: start; }
 .tcard .poster { transition: filter 0.2s; }
-.tcard-title {
-    font-size: 14px; font-weight: 800; line-height: 1.2; margin-bottom: 4px;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-.tcard-meta { font-size: 12px; color: #b0b0b0; font-weight: 600; }
 .tcard-reason {
     margin-top: 4px; font-size: 11px; color: #ff8a8f; font-weight: 600;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -827,7 +825,7 @@ html.tg .header .back-btn { display: none; }
     .burger, .sidebar-overlay { display: none; }
     .sidebar { width: var(--sidebar-w); transform: none; visibility: visible; transition: none; padding-top: 28px; }
     .main { margin-left: var(--sidebar-w); }
-    .card-title { font-size: 15px; }
+    .card-title, .tcard-title { font-size: 15px; }
     .home-section-header h2, .dc-grid-heading h2 { font-size: 22px; }
     .home-section { margin-bottom: 36px; }
 }
@@ -838,11 +836,11 @@ html.tg .header .back-btn { display: none; }
 
 /* Эффекты наведения — только там, где есть мышь */
 @media (hover: hover) and (pointer: fine) {
-    .tcard { transition: transform 0.2s ease, border-color 0.2s; }
-    .tcard:hover { transform: translateY(-4px); border-color: rgba(255, 255, 255, 0.3); }
+    .tcard { transition: border-color 0.2s; }
+    .tcard:hover { border-color: rgba(255, 255, 255, 0.3); }
     .rate-btn:hover { border-color: var(--gold); }
     .card { transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s; }
-    .card:hover { transform: translateY(-6px); box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6); border-color: rgba(255, 255, 255, 0.3); }
+    .card:hover { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6); border-color: rgba(255, 255, 255, 0.3); }
     .card .poster { transition: opacity 0.25s; }
     .card:hover .poster { opacity: 0.7; }
     .card-trailer { opacity: 0; transform: scale(0.85); transition: opacity 0.2s, transform 0.2s, background 0.2s; }
@@ -922,6 +920,8 @@ html.tg .header .back-btn { display: none; }
     display: grid; place-items: center; flex: 1; min-width: 0; min-height: 38px; padding: 5px 3px;
     text-align: center; color: #bbbcc3; border-radius: 8px; font-size: clamp(12px, 3.5vw, 14px); font-weight: 700;
 }
+.library-segments + .library-segments { flex-wrap: wrap; }
+.library-segments + .library-segments a { flex: 1 0 auto; white-space: nowrap; }
 .library-segments a[aria-current="true"] { background: var(--primary); color: #fff; }
 .library-grid { align-items: start; margin-top: 16px; }
 .film-similar { margin-top: 24px; }
