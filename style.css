@@ -164,52 +164,25 @@ html.tg .header .back-btn { display: none; }
 .select:focus-visible { border-color: var(--primary); }
 .result-count { display: none; flex: 0 0 auto; margin-left: auto; color: var(--muted); font-size: 13px; white-space: nowrap; }
 
-/* ---------- Нижняя панель (телефон) ----------
-   Слева тесно три категории, в центре — главная, справа ТОП и аккаунт */
+/* ---------- Нижняя навигация (телефон) ---------- */
 
 .tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
-    display: grid; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); align-items: stretch;
+    display: grid; grid-template-columns: 1fr 1fr 1.35fr 1fr;
     height: calc(var(--tabbar-h) + var(--safe-bottom));
     padding: 0 calc(4px + var(--safe-right)) var(--safe-bottom) calc(4px + var(--safe-left));
-    background: #121217;
-    border-top: 1px solid var(--border);
+    background: #121217; border-top: 1px solid var(--border);
 }
-.tab-group { display: flex; min-width: 0; }
-.tab-group a {
-    flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    color: var(--muted); font-size: 11px; font-weight: 600; white-space: nowrap;
-    transition: color 0.15s;
+.tabbar a {
+    min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; color: var(--muted); font-size: clamp(11px, 3vw, 13px); font-weight: 600; white-space: nowrap;
 }
-/* Три вкладки слева стоят плотнее */
-/* По три вкладки с каждой стороны — стоят плотно */
-.tab-group a { font-size: 10px; letter-spacing: -0.2px; }
-@media (max-width: 360px) {
-    .tabbar { grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr); padding-left: var(--safe-left); padding-right: var(--safe-right); }
-    .tab-group a { font-size: 9px; letter-spacing: -0.3px; }
-}
-.tab-group a svg { width: 22px; height: 22px; }
-.tab-group a.active { color: var(--text); }
-.tab-group a.active svg { stroke: var(--primary); }
-.tab-group a:active { color: var(--text); }
-
-.tab-home { display: flex; align-items: flex-start; justify-content: center; }
-.tab-home-btn {
-    display: flex; align-items: center; justify-content: center;
-    width: 56px; height: 56px; margin-top: -18px; border-radius: 50%;
-    background: linear-gradient(145deg, #ff2a35, #b5060f);
-    border: 4px solid var(--bg);
-    box-shadow: 0 6px 18px var(--primary-glow);
-    transition: transform 0.15s, box-shadow 0.2s;
-}
-.tab-home-btn svg { width: 24px; height: 24px; stroke: #fff; }
-.tab-home:active .tab-home-btn { transform: scale(0.92); }
-.tab-home:not(.active) .tab-home-btn { background: linear-gradient(145deg, #2a2a32, #1c1c22); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); }
-.tab-home:not(.active) .tab-home-btn svg { stroke: var(--muted); }
+.tabbar a svg { width: 22px; height: 22px; }
+.tabbar a.active { color: #ff5059; }
+.tabbar a.active .avatar-tab { box-shadow: 0 0 0 2px var(--primary); }
 
 .tab-icon { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; }
 .tab-icon svg { width: 22px; height: 22px; }
-.tab-group a.active .avatar-tab { box-shadow: 0 0 0 2px var(--primary); }
 
 /* ---------- Контент ---------- */
 
@@ -905,4 +878,71 @@ html.tg .header .back-btn { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+
+
+.collection-shortcuts, .watch-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.collection-shortcuts { margin-bottom: 16px; }
+.home-recs-links { display: flex; gap: 12px; flex-wrap: wrap; }
+.watch-list { max-width: 760px; margin-inline: auto; display: grid; gap: 12px; }
+.watch-types { margin-bottom: 4px; }
+.watch-types .btn-pill { min-height: 42px; }
+.watch-entry {
+    display: grid; grid-template-columns: 72px minmax(0, 1fr) 44px; gap: 12px;
+    align-items: start; padding: 12px; border-radius: 14px;
+    border: 1px solid var(--border); background: var(--surface);
+}
+.watch-poster .poster {
+    display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px;
+}
+.watch-entry-info { padding-top: 3px; }
+.watch-entry h2 { margin-bottom: 4px; font-size: 17px; overflow-wrap: anywhere; }
+.watch-rate { margin-top: 8px; padding-inline: 10px; min-height: 40px; text-align: center; }
+.film-bookmark.is-saved svg { fill: #ff3540; stroke: #ff3540; }
+.film-rating {
+    margin-top: 14px; padding: 8px 10px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+}
+.film-rating-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.film-rating .rate-row { margin-top: 9px; }
+.film-rating .rate-btn[aria-pressed="true"] { color: #fff; background: var(--primary); }
+.film-review { margin-top: 16px; }
+.film-review textarea {
+    display: block; width: 100%; margin-bottom: 8px; padding: 10px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 9px;
+    font: inherit; resize: vertical;
+}
+.toast a { color: #ff777f; font-weight: 700; margin-left: 5px; }
+.toast { width: max-content; max-width: calc(100% - 24px); white-space: normal; visibility: hidden; }
+.toast.show { pointer-events: auto; visibility: visible; }
+.tcard-save { width: 40px; height: 40px; }
+.tcard-save svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+
+@media (max-width: 767px) {
+    .burger, .sidebar, .sidebar-overlay { display: none; }
+    .film {
+        position: relative; display: block; background: var(--bg);
+        padding: 0 0 calc(28px + var(--safe-bottom));
+    }
+    .film-poster { position: relative; }
+    .film-poster::after {
+        content: ""; position: absolute; inset: 0;
+        background: linear-gradient(to bottom, #0f0f1380, transparent 40%, var(--bg));
+        pointer-events: none;
+    }
+    .film-poster .poster { display: block; aspect-ratio: 16 / 10; object-position: center 35%; border-radius: 0; }
+    .film-head, .film-text {
+        padding-inline: calc(var(--pad) + var(--safe-left)) calc(var(--pad) + var(--safe-right));
+    }
+    .film-head { position: relative; margin-top: -15px; }
+    .film-title { font-size: clamp(24px, 6vw, 34px); }
+    .film-text { padding-top: 22px; }
+    .film-actions > .btn-trailer { flex: 1 1 auto; }
+    .film-text > .film-review { width: 100%; }
+    #modalOverlay .modal-close { left: calc(10px + var(--safe-left)); right: auto; }
+    #modalOverlay .modal-close span { position: relative; top: -2px; font-size: 34px; }
 }

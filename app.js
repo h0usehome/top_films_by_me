@@ -2,7 +2,7 @@ const VIEW_TITLES = {
     main: 'Главная', movies: 'Фильмы', series: 'Сериалы', cartoons: 'Мультфильмы',
     top100: 'ТОП 100', new: 'Новинки', recent: 'Недавно добавлено', rewatch: 'Пересматриваем любимое',
     best: 'Лучшее', collections: 'Подборки', account: 'Аккаунт',
-    discover: 'Добавить фильмы', recs: 'Рекомендации', tastes: 'Мои интересы'
+    discover: 'Добавить фильмы', recs: 'Рекомендации', tastes: 'Мои интересы', watch: 'Хочу посмотреть'
 };
 // Готовые подборки на вкладке «Подборки» (свои списки добавляются следом)
 const COLLECTIONS = [
@@ -15,6 +15,8 @@ const COLLECTIONS = [
 // Описание и отзыв — самые тяжёлые поля, их грузим при открытии карточки
 const LIST_FIELDS = 'id,type,title,poster,year,rating,genres,toprank,customlists,created_at,rewatch,trailer,tmdb_id,tmdb_type';
 const PROFILE_FIELDS = 'id,handle,display_name,title,avatar_url';
+const WATCH_TYPES = { all: 'Все', movies: 'Фильмы', series: 'Сериалы', cartoons: 'Мультфильмы' };
+const BOOKMARK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>';
 const HOME_ROW_LIMIT = 10;
 const RECENT_LIMIT = 24;
 const LONG_PRESS_MS = 450;
@@ -134,6 +136,8 @@ function itemsForView(view, list) {
             return items.filter(i => i.rewatch === true);
         case 'best':
             return items.filter(i => Number(i.rating) >= 9).sort((a, b) => b.rating - a.rating);
+        case 'watch':
+            return items.filter(inWantList);
         case 'list':
             return items.filter(i => splitList(i.customlists).includes(list));
         default:
@@ -173,11 +177,12 @@ function avatarHtml(p, cls = '') {
 function stateFromUrl(search = location.search) {
     const p = new URLSearchParams(search);
     const list = p.get('list');
-    const view = list ? 'list' : (VIEW_TITLES[p.get('view')] ? p.get('view') : 'main');
+    const view = list === WANT_LIST ? 'watch' : list ? 'list' : (VIEW_TITLES[p.get('view')] ? p.get('view') : 'main');
     const u = (p.get('u') || '').toLowerCase();
     return {
         view,
-        list: list || null,
+        list: view === 'list' ? list : null,
+        type: view === 'watch' && Object.hasOwn(WATCH_TYPES, p.get('type')) ? p.get('type') : 'all',
         q: p.get('q') || '',
         genre: p.get('genre') || 'all',
         sort: p.get('sort') || 'default',
@@ -191,6 +196,7 @@ function urlFor(s) {
     if (s.u) p.set('u', s.u);
     if (s.view === 'list' && s.list) p.set('list', s.list);
     else if (s.view !== 'main') p.set('view', s.view);
+    if (s.view === 'watch' && s.type && s.type !== 'all') p.set('type', s.type);
     if (s.q) p.set('q', s.q);
     if (s.genre !== 'all') p.set('genre', s.genre);
     if (s.sort !== 'default') p.set('sort', s.sort);
@@ -233,7 +239,7 @@ function applyState(next) {
     const prev = state;
     state = next;
     const viewChanged = viewKey(prev) !== viewKey(next) || prev.q !== next.q
-        || prev.genre !== next.genre || prev.sort !== next.sort;
+        || prev.genre !== next.genre || prev.sort !== next.sort || prev.type !== next.type;
     if (viewChanged || !$('contentGrid').dataset.ready) renderView();
     if (viewKey(prev) !== viewKey(next)) window.scrollTo(0, 0);
     if (prev.film !== next.film || !$('modalOverlay').hidden !== Boolean(next.film)) syncModal();
@@ -264,9 +270,9 @@ function goBack() {
 }
 
 // Переход по ссылке из меню: новый раздел без поиска и фильтров, в той же коллекции
-function navigateTo(href, fromDrawer) {
+function navigateTo(href, fromDrawer, personal) {
     const target = stateFromUrl(new URL(href, location.href).search);
-    const next = { ...target, u: target.u || state.u, film: null };
+    const next = { ...target, u: personal && me ? null : target.u || state.u, film: null };
     if (fromDrawer && history.state && history.state.drawer) {
         // Запись меню в истории превращаем в запись нового раздела
         hideDrawer();
@@ -303,17 +309,21 @@ function showLoadError(err) {
 function renderView() {
     const grid = $('contentGrid');
     grid.dataset.ready = '1';
+    if (state.view !== 'watch') renderGenreOptions();
     updateChrome();
 
     if (state.view === 'account' && !state.q) {
         renderAccount();
         return;
     }
-    if (state.view === 'collections' && !state.q && items.length) {
+    if (state.view === 'watch') {
+        renderWatchlist();
+        return;
+    }
+    if (state.view === 'collections' && !state.q) {
         renderCollections();
         return;
     }
-    // Интересы — tastes.js: при первом входе в свою коллекцию сначала выбор тем
     if (state.view === 'tastes' && !state.q) {
         renderTastes(false);
         return;
@@ -326,17 +336,13 @@ function renderView() {
             ensureTastes().then(rerenderView);
             return;
         }
-        if (taste === 'missing' && state.view === 'main') {
-            renderTastes(true);
-            return;
-        }
     }
     // Быстрое добавление и рекомендации — discover.js
     if (state.view === 'recs' && !state.q) {
         renderRecs();
         return;
     }
-    if ((state.view === 'discover' || (!items.length && isMine())) && !state.q) {
+    if ((state.view === 'discover' || (state.view === 'main' && !items.length && isMine())) && !state.q) {
         renderDiscover();
         return;
     }
@@ -373,6 +379,50 @@ function renderView() {
     }
 }
 
+function renderWatchlist() {
+    const grid = $('contentGrid');
+    const saved = itemsForView('watch');
+    renderGenreOptions(saved);
+    $('genreSelect').value = state.genre;
+    const searchMatches = state.q && new Set(searchItems(state.q));
+    const filtered = saved.filter(item =>
+        (!state.type || state.type === 'all' || state.type === item.type)
+        && (state.genre === 'all' || splitList(item.genres).includes(state.genre))
+        && (!searchMatches || searchMatches.has(item)));
+    const list = state.sort === 'default'
+        ? filtered.sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || Number(b.id) - Number(a.id))
+        : sortItems(filtered, state.sort);
+    $('resultCount').textContent = `Показано ${list.length} из ${saved.length}`;
+    grid.className = 'watch-list';
+    grid.innerHTML = `
+        <nav class="watch-types" aria-label="Тип контента">
+            ${Object.entries(WATCH_TYPES).map(([key, label]) => {
+                const selected = key === (state.type || 'all');
+                return `<a class="btn-pill${selected ? ' btn-pill-primary' : ''}" href="${escapeHtml(urlFor({ ...state, type: key, film: null }))}" data-nav ${selected ? 'aria-current="page"' : ''}>${label}</a>`;
+            }).join('')}
+        </nav>
+        ${list.map(watchRow).join('') || `<div class="empty-state">
+            ${saved.length
+                ? `По этим фильтрам ничего не найдено. <a class="btn-pill" href="${escapeHtml(urlFor({ ...stateFromUrl(''), view: 'watch', u: state.u }))}" data-nav>Сбросить фильтры</a>`
+                : `Список пока пуст.${isMine() ? ' <a class="btn-pill" href="?view=discover" data-nav>Найти фильм</a>' : ''}`}
+        </div>`}`;
+}
+
+function watchRow(item) {
+    const id = escapeHtml(item.id);
+    const link = `href="${escapeHtml(urlFor({ ...state, film: String(item.id) }))}" data-film="${id}"`;
+    const meta = [item.year, typeName(item.type)].filter(Boolean).join(' · ');
+    return `<article class="watch-entry">
+        <a class="watch-poster" ${link} aria-label="${escapeHtml(item.title)}">${posterImg(item.poster, { size: 'small' })}</a>
+        <div class="watch-entry-info">
+            <h2><a ${link}>${escapeHtml(item.title)}</a></h2>
+            <p class="muted">${escapeHtml(meta)}</p>
+            ${isMine() ? `<a class="btn-ghost watch-rate" ${link} data-focus-rating>Поставить оценку</a>` : ''}
+        </div>
+        ${isMine() ? `<button type="button" class="btn-ghost btn-icon film-bookmark is-saved" data-watch-item="${id}" aria-label="Убрать из списка" aria-pressed="true">${BOOKMARK_ICON}</button>` : ''}
+    </article>`;
+}
+
 function updateChrome() {
     const isMain = state.view === 'main' && !state.q;
     const title = state.q ? `Поиск: «${state.q}»`
@@ -384,6 +434,7 @@ function updateChrome() {
 
     $('filtersBar').hidden = isMain || (['account', 'collections', 'discover', 'recs', 'tastes'].includes(state.view) && !state.q);
     $('backToMain').hidden = isMain;
+    $('sortSelect').options[0].textContent = state.view === 'watch' ? 'Сначала недавние записи' : 'По умолчанию';
     $('genreSelect').value = state.genre;
     $('sortSelect').value = state.sort;
 
@@ -391,7 +442,8 @@ function updateChrome() {
     if (document.activeElement !== search) search.value = state.q;
     $('header').classList.toggle('search-open', Boolean(state.q) || $('header').classList.contains('search-focus'));
 
-    const key = state.q ? null : viewKey(state);
+    const key = state.view === 'watch' ? 'watch' : state.q ? null
+        : isMain && isMine() && !items.length ? 'discover' : viewKey(state);
     document.querySelectorAll('[data-key]').forEach(el => {
         // Вкладка «Подборки» подсвечена и внутри подборки или своего списка
         const also = (el.dataset.also || '').split(' ');
@@ -406,7 +458,7 @@ function updateChrome() {
 function syncNavHrefs() {
     document.querySelectorAll('a[data-nav][data-key]').forEach(a => {
         const key = a.dataset.key;
-        const s = { ...stateFromUrl(''), u: state.u };
+        const s = { ...stateFromUrl(''), u: a.hasAttribute('data-personal') && me ? null : state.u };
         if (key.startsWith('list:')) Object.assign(s, { view: 'list', list: key.slice(5) });
         else s.view = key;
         a.setAttribute('href', urlFor(s).replace(/#.*$/, '') || './');
@@ -458,11 +510,16 @@ function renderHome() {
         ['Новинки', itemsForView('new'), sectionUrl({ view: 'new' })],
         ['ТОП 100', topItems(), sectionUrl({ view: 'top100' })],
         ['Пересматриваем любимое', itemsForView('rewatch'), sectionUrl({ view: 'rewatch' })],
-        ...customLists().map(name => [name, itemsForView('list', name), sectionUrl({ view: 'list', list: name })])
+        ...customLists().filter(name => name !== WANT_LIST).map(name => [name, itemsForView('list', name), sectionUrl({ view: 'list', list: name })])
     ].filter(([, list]) => list.length);
 
     grid.innerHTML = `
         ${ownerBannerHtml()}
+        <nav class="collection-shortcuts" aria-label="Разделы коллекции">
+            ${Object.entries(WATCH_TYPES).filter(([key]) => key !== 'all').map(([view, label]) =>
+                `<a class="btn-pill" href="${escapeHtml(sectionUrl({ view }))}" data-nav>${label}</a>`).join('')}
+            <a class="btn-pill" href="${escapeHtml(sectionUrl({ view: 'collections' }))}" data-nav>Подборки и ТОП‑100</a>
+        </nav>
         <div class="stats">${stats.map(([v, l]) => `<div class="stat"><div class="stat-value">${v}</div><div class="stat-label">${l}</div></div>`).join('')}</div>
         ${isMine() ? homeRecsHtml() : ''}
         ${sections.map(([title, list, href], sIdx) => `
@@ -532,16 +589,16 @@ function plural(n, one, few, many) {
 }
 
 function renderSidebarLists() {
-    const lists = customLists();
+    const lists = customLists().filter(name => name !== WANT_LIST);
     $('listsHeading').hidden = !lists.length;
     $('dynamicLists').innerHTML = lists.map(name =>
         `<a class="nav-item" href="?list=${encodeURIComponent(name)}" data-nav data-key="${escapeHtml('list:' + name)}">📌 ${escapeHtml(name)}</a>`
     ).join('');
 }
 
-function renderGenreOptions() {
+function renderGenreOptions(source = items) {
     const genres = new Set();
-    items.forEach(i => splitList(i.genres).forEach(g => genres.add(g)));
+    source.forEach(i => splitList(i.genres).forEach(g => genres.add(g)));
     $('genreSelect').innerHTML = '<option value="all">Все жанры</option>' + [...genres]
         .sort((a, b) => a.localeCompare(b, 'ru'))
         .map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
@@ -573,7 +630,7 @@ function renderCollections() {
         .map(([view, emoji, hint]) => [view, emoji, hint, itemsForView(view)])
         .filter(([, , , list]) => list.length)
         .map(([view, emoji, hint, list]) => collectionTile(urlFor({ ...base, view }), emoji, VIEW_TITLES[view], hint, list));
-    const own = customLists().map(name => {
+    const own = customLists().filter(name => name !== WANT_LIST).map(name => {
         const list = itemsForView('list', name);
         return collectionTile(urlFor({ ...base, view: 'list', list: name }), '📌', name, `${list.length} ${plural(list.length, 'запись', 'записи', 'записей')}`, list);
     });
@@ -583,6 +640,7 @@ function renderCollections() {
     ] : [];
     grid.innerHTML = `
         ${personal.length ? `<h2 class="coll-heading">Для вас</h2><div class="coll-grid">${personal.join('')}</div>` : ''}
+        ${isMine() || items.some(inWantList) ? `<div class="coll-grid">${collectionTile(urlFor({ ...base, view: 'watch' }), '🔖', WANT_LIST, 'Сохранённые фильмы и сериалы', itemsForView('watch'))}</div>` : ''}
         <h2 class="coll-heading">Готовые подборки</h2>
         <div class="coll-grid">${ready.join('') || '<div class="empty-state">Пока пусто.</div>'}</div>
         <h2 class="coll-heading">${isMine() ? 'Мои списки' : 'Списки'}</h2>
@@ -775,6 +833,7 @@ function syncModal() {
 
     document.title = `${item.title} — ${collectionTitle()}`;
     $('modalBody').innerHTML = filmHtml(item);
+    loadFilmBackdrop(item);
     overlay.hidden = false;
     lockScroll();
     $('modalContent').scrollTop = 0;
@@ -783,16 +842,27 @@ function syncModal() {
 
     if (!item.details) {
         loadDetails(item)
-            .then(() => { if (String(state.film) === String(item.id)) $('filmText').innerHTML = filmTextHtml(item.details); })
+            .then(() => {
+                if (String(state.film) !== String(item.id)) return;
+                $('filmText').innerHTML = filmTextHtml(item.details);
+                const review = $('modalBody').querySelector('[data-review-edit]');
+                if (review) {
+                    review.disabled = false;
+                    review.textContent = item.details.review ? 'Изменить отзыв' : 'Написать отзыв';
+                }
+            })
             .catch(() => { if (String(state.film) === String(item.id)) $('filmText').innerHTML = '<p class="muted">Не удалось загрузить описание.</p>'; });
     }
 }
 
 function filmHtml(item) {
+    const id = escapeHtml(item.id);
+    const saved = inWantList(item);
+    const mine = isMine();
     const tags = [
         `<span class="tag tag-type">${typeName(item.type)}</span>`,
         item.year ? `<span class="tag">${escapeHtml(item.year)}</span>` : '',
-        item.rating !== null && item.rating !== '' ? `<span class="tag tag-rating">★ ${escapeHtml(item.rating)}</span>` : '',
+        !mine && item.rating != null && item.rating !== '' ? `<span class="tag tag-rating">★ ${escapeHtml(item.rating)}</span>` : '',
         item.toprank > 0 && item.toprank <= 100 ? `<span class="tag tag-top">🏆 №${escapeHtml(item.toprank)}</span>` : '',
         ...splitList(item.genres).map(g => `<span class="tag tag-genre">${escapeHtml(g)}</span>`)
     ].join('');
@@ -804,13 +874,111 @@ function filmHtml(item) {
             <div class="film-tags">${tags}</div>
             <div class="film-actions">
                 ${item.trailer ? `<button type="button" class="btn-trailer" data-trailer="${escapeHtml(item.trailer)}">▶ Трейлер</button>` : ''}
-                <button type="button" class="btn-ghost" data-share="${escapeHtml(item.id)}">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Поделиться
+                ${mine ? `<button type="button" class="btn-ghost film-bookmark${saved ? ' is-saved' : ''}" data-watch-item="${id}" aria-pressed="${saved}">${BOOKMARK_ICON}${saved ? 'В списке' : 'Хочу посмотреть'}</button>` : ''}
+                <button type="button" class="btn-ghost film-share" data-share="${id}" aria-label="Поделиться">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg><span>Поделиться</span>
                 </button>
-                ${isMine() ? `<a class="btn-ghost btn-icon" href="${editUrl(item)}" aria-label="Редактировать">✏️</a>` : ''}
+                ${mine ? `<a class="btn-ghost btn-icon" href="${editUrl(item)}" aria-label="Редактировать">✏️</a>` : ''}
             </div>
+            ${mine ? `<div class="film-rating">
+                <div class="film-rating-row"><strong>Ваша оценка</strong>
+                    <button type="button" class="btn-ghost" data-toggle-rating aria-expanded="false" aria-controls="filmRatingChoices">${item.rating != null && item.rating !== '' ? `★ ${escapeHtml(item.rating)} из 10` : '☆ Оценить'}</button>
+                </div>
+                <div class="rate-row" id="filmRatingChoices" role="group" aria-label="Оценка от 1 до 10" hidden>
+                    ${Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
+                        `<button type="button" class="rate-btn" data-film-rating="${n}" aria-pressed="${Number(item.rating) === n}">${n}</button>`).join('')}
+                </div>
+            </div>` : ''}
         </div>
-        <div class="film-text" id="filmText">${item.details ? filmTextHtml(item.details) : '<p class="muted">Загрузка описания…</p>'}</div>`;
+        <div class="film-text">
+            <div id="filmText">${item.details ? filmTextHtml(item.details) : '<p class="muted">Загрузка описания…</p>'}</div>
+            ${mine ? `<button class="btn-ghost film-review" type="button" ${item.details ? '' : 'disabled'} data-review-edit aria-expanded="false" aria-controls="filmReviewForm">${item.details?.review ? 'Изменить отзыв' : 'Написать отзыв'}</button>
+                <form class="film-review" id="filmReviewForm" hidden>
+                    <textarea name="review" rows="4" aria-label="Ваш отзыв">${escapeHtml(item.details?.review || '')}</textarea>
+                    <button class="btn-ghost" type="submit">Сохранить отзыв</button>
+                </form>` : ''}
+        </div>`;
+}
+
+const filmWrites = new Set();
+
+function openFilmRating() {
+    const choices = $('filmRatingChoices');
+    if (!choices) return;
+    choices.hidden = !choices.hidden;
+    $('modalBody').querySelector('[data-toggle-rating]').setAttribute('aria-expanded', String(!choices.hidden));
+    if (!choices.hidden) {
+        const choice = choices.querySelector('[aria-pressed="true"]') || choices.firstElementChild;
+        choice.focus();
+    }
+}
+
+function toggleFilmWatch(item, control) {
+    if (!item || !isMine()) return;
+    const saved = inWantList(item);
+    const lists = splitList(item.customlists).filter(name => name !== WANT_LIST);
+    if (!saved) lists.push(WANT_LIST);
+    return saveFilmPatch(item, { customlists: lists.join(', ') },
+        saved ? 'Убрано из списка' : 'Добавлено в «Хочу посмотреть»', control, !saved);
+}
+
+async function saveFilmPatch(item, patch, message, control, watchLink = false) {
+    if (!item || !isMine() || filmWrites.has(item.id)) return;
+    const ownerId = me.id;
+    filmWrites.add(item.id);
+    if (control) control.disabled = true;
+    try {
+        const token = await myToken();
+        if (!token) throw new Error('Нужно войти заново');
+        const [row] = await api(`collection?id=eq.${encodeURIComponent(item.id)}&owner_id=eq.${encodeURIComponent(ownerId)}`, {
+            method: 'PATCH', token, body: JSON.stringify(patch)
+        });
+        if (!row) throw new Error('Запись не найдена');
+        if (owner?.id !== ownerId || findItem(item.id) !== item) return;
+        Object.assign(item, row, { details: { description: row.description || '', review: row.review || '' } });
+        if (!Object.hasOwn(patch, 'review')) {
+            onItemsChanged();
+            if (!control?.matches('[data-quick-watch]') && state.view !== 'discover' && !$('dcGrid')) renderView();
+            else if (control?.matches('[data-quick-watch]')) refreshCards(control.dataset.quickWatch);
+            else if (item.tmdb_id) refreshCards(`${item.tmdb_type || (item.type === 'series' ? 'tv' : 'movie')}:${item.tmdb_id}`);
+        }
+        if (String(state.film) === String(item.id)) {
+            const scroll = $('modalContent').scrollTop;
+            $('modalBody').innerHTML = filmHtml(item);
+            loadFilmBackdrop(item);
+            $('modalContent').scrollTop = scroll;
+            $('modalBody').querySelector(control?.matches('[data-film-rating]') ? '[data-toggle-rating]'
+                : control?.matches('[data-watch-item]') ? '[data-watch-item]' : '[data-review-edit]')?.focus({ preventScroll: true });
+        }
+        toast(message, watchLink);
+    } catch (err) {
+        toast(`Не получилось сохранить: ${err.message}`);
+    } finally {
+        if (control) control.disabled = false;
+        filmWrites.delete(item.id);
+    }
+}
+
+function loadFilmBackdrop(item) {
+    if (!matchMedia('(max-width: 767px)').matches || !item.tmdb_id) return;
+    const poster = $('modalBody').querySelector('.film-poster img');
+    if (!poster) return;
+    const type = item.tmdb_type || (item.type === 'series' ? 'tv' : 'movie');
+    item.backdropRequest ||= tmdbGet(`${type}/${item.tmdb_id}`, { language: 'ru-RU' })
+        .then(data => /^\/[\w-]+\.(?:jpg|png)$/.test(data.backdrop_path) ? data.backdrop_path : '')
+        .catch(() => { delete item.backdropRequest; return ''; });
+    item.backdropRequest.then(path => {
+        if (!path || !poster.isConnected) return;
+        const url = `https://image.tmdb.org/t/p/w780${path}`;
+        const backdrop = new Image();
+        backdrop.onload = () => {
+            if (poster.isConnected) {
+                poster.dataset.original = url;
+                poster.src = url;
+            }
+        };
+        backdrop.src = url;
+    });
 }
 
 function filmTextHtml({ description, review }) {
@@ -904,12 +1072,20 @@ async function copyText(text) {
 }
 
 let toastTimer;
-function toast(text) {
+function toast(text, watchLink = false) {
     const el = $('toast');
     el.textContent = text;
+    if (watchLink) {
+        const link = document.createElement('a');
+        link.href = '?view=watch';
+        link.dataset.nav = '';
+        link.dataset.personal = '';
+        link.textContent = 'Открыть';
+        el.append(' ', link);
+    }
     el.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+    toastTimer = setTimeout(() => el.classList.remove('show'), watchLink ? 4500 : 2200);
 }
 
 // ---------- Меню действий (долгое нажатие на карточку) ----------
@@ -1097,13 +1273,47 @@ document.addEventListener('click', (e) => {
     const sheetBtn = e.target.closest('[data-sheet-action]');
     if (sheetBtn) { sheetAction(sheetBtn.dataset.sheetAction); return; }
 
+    const watch = e.target.closest('[data-watch-item]');
+    if (watch) { toggleFilmWatch(findItem(watch.dataset.watchItem), watch); return; }
+    if (e.target.closest('[data-toggle-rating]')) { openFilmRating(); return; }
+
+    const rating = e.target.closest('[data-film-rating]');
+    if (rating) {
+        const item = findItem(state.film);
+        if (!item || !isMine()) return;
+        const saved = inWantList(item);
+        const patch = { rating: Number(rating.dataset.filmRating) };
+        if (saved) patch.customlists = splitList(item.customlists).filter(name => name !== WANT_LIST).join(', ');
+        saveFilmPatch(item, patch,
+            saved ? 'Оценка сохранена, фильм убран из списка' : 'Оценка сохранена', rating);
+        return;
+    }
+    const review = e.target.closest('[data-review-edit]');
+    if (review) {
+        const item = findItem(state.film);
+        const form = $('filmReviewForm');
+        if (!item || !form) return;
+        form.hidden = !form.hidden;
+        review.setAttribute('aria-expanded', String(!form.hidden));
+        if (!form.hidden) {
+            form.elements.review.value = item.details?.review || '';
+            form.elements.review.focus();
+        }
+        return;
+    }
+
     const share = e.target.closest('[data-share]');
     if (share) { const item = findItem(share.dataset.share); if (item) shareFilm(item); return; }
 
     const modified = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
 
     const film = e.target.closest('a[data-film]');
-    if (film && !modified) { e.preventDefault(); openFilm(film.dataset.film); return; }
+    if (film && !modified) {
+        e.preventDefault();
+        openFilm(film.dataset.film);
+        if (film.hasAttribute('data-focus-rating')) openFilmRating();
+        return;
+    }
 
     const mine = e.target.closest('a[data-mine]');
     if (mine && !modified) { e.preventDefault(); hideDrawer(); go({ ...stateFromUrl(''), u: null }); return; }
@@ -1112,7 +1322,7 @@ document.addEventListener('click', (e) => {
     if (home && !modified) { e.preventDefault(); go({ ...stateFromUrl(''), u: null }); return; }
 
     const nav = e.target.closest('a[data-nav]');
-    if (nav && !modified) { e.preventDefault(); navigateTo(nav.href, Boolean(nav.closest('#sidebar'))); return; }
+    if (nav && !modified) { e.preventDefault(); navigateTo(nav.href, Boolean(nav.closest('#sidebar')), nav.hasAttribute('data-personal')); return; }
 
     const action = e.target.closest('[data-action]');
     if (!action) return;
@@ -1129,6 +1339,12 @@ document.addEventListener('click', (e) => {
 }, true);
 
 document.addEventListener('submit', (e) => {
+    if (e.target.id === 'filmReviewForm') {
+        e.preventDefault();
+        if (!findItem(state.film)?.details) { toast('Дождитесь загрузки отзыва'); return; }
+        saveFilmPatch(findItem(state.film), { review: e.target.elements.review.value.trim() }, 'Отзыв сохранён', e.submitter);
+        return;
+    }
     if (e.target.id !== 'profileForm') return;
     e.preventDefault();
     saveProfile(e.target);
@@ -1163,7 +1379,7 @@ window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
         if (state.view === 'main' && !state.q) markScrollableRows();
-        if (window.innerWidth >= 1024) hideDrawer();
+        if (window.innerWidth < 768 || window.innerWidth >= 1024) hideDrawer();
     }, 150);
 });
 

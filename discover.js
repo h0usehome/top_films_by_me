@@ -148,6 +148,7 @@ async function addFromTmdb(r, { rating = null, want = false }) {
         items.unshift(row);
         dc.added++;
         onItemsChanged();
+        if (want) toast('Добавлено в «Хочу посмотреть»', true);
         window.tgApp?.HapticFeedback?.notificationOccurred?.('success');
     } catch (err) {
         console.error(err);
@@ -167,6 +168,7 @@ async function updateOwned(item, patch, r) {
         const [row] = await dbWrite('PATCH', `collection?id=eq.${encodeURIComponent(item.id)}`, patch);
         if (row) Object.assign(item, row);
         onItemsChanged();
+        if (!inWantList(before) && inWantList(item)) toast('Добавлено в «Хочу посмотреть»', true);
     } catch (err) {
         Object.assign(item, before);
         toast(`Не получилось сохранить: ${err.message}`);
@@ -218,8 +220,8 @@ function tcard(r, reason = '') {
     const owned = findOwned(r);
     const mark = owned?.pending ? '<span class="tcard-mark is-busy" aria-hidden="true"></span>'
         : owned?.rating != null ? `<span class="tcard-mark is-rated">★ ${escapeHtml(owned.rating)}</span>`
-        : owned ? '<span class="tcard-mark is-want" title="Хочу посмотреть">🔖</span>'
-        : '<span class="tcard-mark" aria-hidden="true">+</span>';
+        : '';
+    const saved = inWantList(owned);
     const label = [r.title, r.year, owned?.rating != null ? `ваша оценка ${owned.rating}` : ''].filter(Boolean).join(', ');
     return `
     <article class="tcard${owned ? ' is-owned' : ''}" data-tkey="${escapeHtml(r.key)}" data-reason="${escapeHtml(reason)}">
@@ -232,6 +234,8 @@ function tcard(r, reason = '') {
             </span>
             ${mark}
         </button>
+        ${!mark && isMine() ? `<button class="tcard-mark tcard-save film-bookmark${saved ? ' is-saved' : ''}" type="button"
+            data-quick-watch="${escapeHtml(r.key)}" aria-pressed="${saved}" aria-label="${saved ? 'Убрать из списка' : 'Хочу посмотреть'}">${BOOKMARK_ICON}</button>` : ''}
     </article>`;
 }
 
@@ -323,8 +327,8 @@ function renderDiscover() {
     grid.innerHTML = `
         ${empty ? `
         <section class="dc-hero">
-            <h2>🍿 Соберём вашу коллекцию</h2>
-            <p>Нажмите на то, что уже смотрели, и поставьте оценку — по ней подберём, что посмотреть дальше.</p>
+            <h2>Найдите фильм или сериал</h2>
+            <p>Оцените просмотренное или сохраните на потом.</p>
         </section>` : '<p class="dc-lead">Нажмите на постер, чтобы поставить оценку или отложить фильм на потом.</p>'}
         <form class="dc-search" id="dcSearchForm" role="search">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
@@ -826,7 +830,8 @@ async function fillHomeRecs() {
         el.innerHTML = `
             <div class="home-section-header">
                 <h2><a href="?view=recs" data-nav>✨ Рекомендуем вам</a></h2>
-                <a class="see-all" href="?view=recs" data-nav>Все →</a>
+                <div class="home-recs-links"><a class="see-all" href="?view=tastes" data-nav>Настроить</a>
+                <a class="see-all" href="?view=recs" data-nav>Все →</a></div>
             </div>
             <div class="home-row">${list.slice(0, 12).map(r => tcard(r, r.reason || '')).join('')}</div>`;
         el.hidden = false;
@@ -839,6 +844,16 @@ async function fillHomeRecs() {
 // ---------- События ----------
 
 document.addEventListener('click', (e) => {
+    const quickWatch = e.target.closest('[data-quick-watch]');
+    if (quickWatch && isMine()) {
+        const result = dcSeen.get(quickWatch.dataset.quickWatch);
+        if (result) {
+            const item = findOwned(result);
+            if (item && !item.pending) toggleFilmWatch(item, quickWatch);
+            else if (!item) addFromTmdb(result, { want: true });
+        }
+        return;
+    }
     const pick = e.target.closest('[data-dc-pick]');
     if (pick) { const r = dcSeen.get(pick.dataset.dcPick); if (r) openPickSheet(r); return; }
 
