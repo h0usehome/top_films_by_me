@@ -22,6 +22,13 @@ const TASTE_TAGS = [
     { id: 'comedy', group: 'genres', label: '😂 Комедии', genres: [35] },
     { id: 'drama', group: 'genres', label: '🎭 Драмы', genres: [18] },
     { id: 'horror', group: 'genres', label: '👻 Ужастики', genres: [27] },
+    { id: 'action', group: 'genres', label: '💥 Боевики', genres: [28] },
+    { id: 'thriller', group: 'genres', label: '😰 Триллеры', genres: [53], mt: ['movie'] },
+    { id: 'scifi', group: 'genres', label: '🛸 Фантастика', genres: [878] },
+    { id: 'fantasy', group: 'genres', label: '🐉 Фэнтези', genres: [14] },
+    { id: 'mystery', group: 'genres', label: '🔍 Детективы', genres: [9648] },
+    { id: 'crime', group: 'genres', label: '🚔 Криминал', genres: [80] },
+    { id: 'adventure', group: 'genres', label: '🧭 Приключения', genres: [12] },
 
     { id: 'superhero', group: 'themes', label: '🦸 Супергероика', keywords: ['superhero', 'based on comic'] },
     { id: 'love', group: 'themes', label: '💘 Про любовь', genres: [10749] },
