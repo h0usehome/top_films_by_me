@@ -386,6 +386,7 @@ function renderLibrary() {
     const list = state.sort === 'default'
         ? filtered.sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || Number(b.id) - Number(a.id))
         : sortItems(filtered, state.sort);
+    $('resultCount').textContent = `${list.length} ${plural(list.length, 'запись', 'записи', 'записей')}`;
 
     const segments = (entries, current, label, stateFor) => `
         <nav class="library-segments" aria-label="${label}">
@@ -415,7 +416,7 @@ function updateChrome() {
     $('pageTitle').textContent = title;
     if (!state.film) document.title = isMain ? collectionTitle() : `${title} — ${collectionTitle()}`;
 
-    $('filtersBar').hidden = isMain || (['account', 'collections', 'discover', 'recs', 'tastes'].includes(state.view) && !state.q);
+    $('filtersBar').hidden = !state.q && ['watch', 'account', 'collections', 'discover', 'recs', 'tastes'].includes(state.view);
     $('backToMain').hidden = isMain;
     $('genreSelect').value = state.genre;
     $('sortSelect').value = state.sort;
