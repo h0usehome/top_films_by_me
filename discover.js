@@ -1,9 +1,9 @@
 // Быстрое добавление фильмов и рекомендации — только для своей коллекции.
 //
-// «Добавить фильмы» (?view=discover, а для пустой коллекции — главная):
-//   популярные фильмы и сериалы по жанрам и поиск; нажал на постер —
+// «Найти» (?view=discover):
+//   подборки и поиск фильмов, сериалов и мультфильмов; нажал на постер —
 //   поставил оценку 1–10 или отложил в список «Хочу посмотреть».
-// «Рекомендации» (?view=recs и ряд на главной):
+// «Рекомендации» (?view=recs):
 //   пока коллекция пуста — тренды и самое известное; дальше — похожие на то,
 //   что оценено на 7+, и лучшее в любимом жанре.
 //
@@ -34,7 +34,12 @@ const GENRE_TITLES = {
     36: 'Лучшие исторические фильмы', 37: 'Лучшие вестерны', 16: 'Лучшие мультфильмы'
 };
 
-const dc = { mt: 'movie', genre: 0, page: 1, more: false, q: '', token: 0, added: 0, trendKeys: new Set() };
+const DISCOVER_TYPES = {
+    movie: { label: 'Фильмы', cult: 'Культовые фильмы', media: ['movie'] },
+    tv: { label: 'Сериалы', cult: 'Культовые сериалы', media: ['tv'] },
+    animation: { label: 'Мультфильмы', cult: 'Культовые мультфильмы', media: ['movie', 'tv'] }
+};
+const dc = { type: 'movie', page: 1, q: '', token: 0, added: 0, seenCult: new Set() };
 const dcSeen = new Map();      // key → данные TMDB карточки на экране
 const dcPending = new Map();   // key → { rating, want } пока запись сохраняется
 let dcSheet = null;            // карточка, открытая в меню оценки
@@ -327,62 +332,41 @@ function renderDiscover() {
     grid.innerHTML = `
         ${empty ? `
         <section class="dc-hero">
-            <h2>Найдите фильм или сериал</h2>
+            <h2>Найдите фильм, сериал или мультфильм</h2>
             <p>Оцените просмотренное или сохраните на потом.</p>
         </section>` : '<p class="dc-lead">Нажмите на постер, чтобы поставить оценку или отложить фильм на потом.</p>'}
         <form class="dc-search" id="dcSearchForm" role="search">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-            <input type="search" id="dcSearch" placeholder="Найти фильм или сериал" aria-label="Найти фильм или сериал" autocomplete="off" enterkeyhint="search" value="${escapeHtml(dc.q)}">
+            <input type="search" id="dcSearch" placeholder="Поиск по названию" aria-label="Поиск по названию" autocomplete="off" enterkeyhint="search" value="${escapeHtml(dc.q)}">
         </form>
-        <div class="dc-browse" id="dcBrowse">
-            <div class="dc-tabs" role="tablist">
-                <button type="button" role="tab" data-dc-mt="movie">Фильмы</button>
-                <button type="button" role="tab" data-dc-mt="tv">Сериалы</button>
-            </div>
-            <div class="dc-chips" id="dcChips"></div>
+        <div class="dc-tabs" role="group" aria-label="Тип контента">
+            ${Object.entries(DISCOVER_TYPES).map(([type, { label }]) =>
+                `<button type="button" data-dc-type="${type}">${label}</button>`).join('')}
         </div>
-        <section class="home-section" id="dcTaste" hidden></section>
-        <section class="home-section" id="dcTrend" hidden>
-            <div class="home-section-header"><div class="section-heading">
-                <span class="section-kicker">Новинки, которые смотрят сейчас</span>
-                <h2 id="dcTrendTitle">🔥 Сейчас в тренде</h2>
-            </div></div>
-            <div class="home-row" id="dcTrendRow"></div>
-        </section>
-        <div class="section-heading dc-grid-heading" id="dcGridHeading">
-            <span class="section-kicker">Самые известные за всё время</span>
-            <h2 id="dcGridTitle">🏆 Культовые фильмы</h2>
+        <div id="dcShelves">
+            <section class="home-section" id="dcTaste" hidden></section>
+            <section class="home-section" id="dcTrend"></section>
+            <section class="home-section" id="dcCult"></section>
+            <div class="dc-more"><button type="button" class="btn-pill" id="dcMore" data-dc-more hidden>Показать ещё</button></div>
+            <div id="dcGenreRows"></div>
         </div>
-        <div class="grid dc-grid" id="dcGrid"></div>
-        <div class="dc-more"><button type="button" class="btn-pill" id="dcMore" data-dc-more hidden>Показать ещё</button></div>
+        <div class="grid dc-grid" id="dcGrid" hidden></div>
         <div class="dc-bar" id="dcBar" hidden>
             <span id="dcBarText"></span>
             <button type="button" class="btn-pill btn-pill-primary" data-dc-done>Готово</button>
         </div>`;
     syncDcControls();
-    if (dc.q) runSearch(dc.q); else loadDiscover(true);
+    if (dc.q) runSearch(dc.q); else loadDiscover();
 }
 
 function syncDcControls() {
-    document.querySelectorAll('[data-dc-mt]').forEach(b => {
-        const on = b.dataset.dcMt === dc.mt;
-        b.classList.toggle('active', on);
-        b.setAttribute('aria-selected', String(on));
+    document.querySelectorAll('[data-dc-type]').forEach(button => {
+        const selected = button.dataset.dcType === dc.type;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-pressed', String(selected));
     });
-    const chips = $('dcChips');
-    if (chips) chips.innerHTML = [[0, 'Всё'], ...DC_GENRES[dc.mt]].map(([id, name]) =>
-        `<button type="button" class="dc-chip${dc.genre === id ? ' active' : ''}" data-dc-genre="${id}">${escapeHtml(name)}</button>`).join('');
-    const browse = $('dcBrowse');
-    if (browse) browse.hidden = Boolean(dc.q);
-    // В поиске — только результаты, без подборок
-    if ($('dcTrend') && dc.q) $('dcTrend').hidden = true;
-    if ($('dcTaste') && (dc.q || dc.genre)) $('dcTaste').hidden = true;
-    if ($('dcGridHeading')) {
-        $('dcGridHeading').hidden = Boolean(dc.q);
-        const genre = DC_GENRES[dc.mt].find(([id]) => id === dc.genre);
-        $('dcGridTitle').textContent = genre ? `🏆 Культовые: ${genre[1].toLowerCase()}` : `🏆 Культовые ${dc.mt === 'tv' ? 'сериалы' : 'фильмы'}`;
-        $('dcTrendTitle').textContent = genre ? `🔥 Популярно сейчас: ${genre[1].toLowerCase()}` : '🔥 Сейчас в тренде';
-    }
+    $('dcShelves').hidden = Boolean(dc.q);
+    $('dcGrid').hidden = !dc.q;
 }
 
 // Карточки TMDB без телефильмов и без постера (уже добавленные — с отметкой)
@@ -396,87 +380,180 @@ function dcSkeleton(n = 12) {
     return '<div class="skeleton"></div>'.repeat(n);
 }
 
-// Сверху — что смотрят сейчас (тренды недели или популярное в жанре),
-// ниже — культовое: самое известное за всё время, его чаще всего уже видели
-function trendRequest() {
-    return dc.genre
-        ? { path: `discover/${dc.mt}`, params: { language: 'ru-RU', sort_by: 'popularity.desc', with_genres: dc.genre, 'vote_count.gte': dc.mt === 'tv' ? 50 : 100, include_adult: 'false' } }
-        : { path: `trending/${dc.mt}/week`, params: { language: 'ru-RU' } };
+function discoverGenreId(genre, mt) {
+    if (mt !== 'tv' || DC_GENRES.tv.some(([id]) => id === genre)) return genre;
+    const equivalent = Object.keys(TV_GENRE_MAP).find(id => TV_GENRE_MAP[id].includes(genre));
+    return equivalent ? Number(equivalent) : genre;
 }
 
-function cultRequest() {
-    const params = { language: 'ru-RU', sort_by: 'vote_count.desc', include_adult: 'false', page: dc.page };
-    if (dc.genre) params.with_genres = dc.genre;
-    return { path: `discover/${dc.mt}`, params };
+function catalogRequests(type, params) {
+    return DISCOVER_TYPES[type].media.map(mt => {
+        const { with_genres: genre, ...filters } = params;
+        const genreId = discoverGenreId(genre, mt);
+        const genres = [...new Set([type === 'animation' ? 16 : null, genreId].filter(Boolean))];
+        return {
+            path: `discover/${mt}`,
+            params: {
+                language: 'ru-RU', include_adult: 'false', ...filters,
+                ...(genres.length ? { with_genres: genres.join(',') } : {}),
+                ...(type === 'animation' ? {} : { without_genres: 16 })
+            }
+        };
+    });
 }
 
-async function loadDiscover(reset) {
-    const grid = $('dcGrid');
-    if (!grid) return;
+function catalogItems(results, type) {
+    const animation = type === 'animation';
+    const seen = new Set();
+    const media = DISCOVER_TYPES[type].media;
+    const lists = results.map((result, index) => browseItems(result, media[index]));
+    const combined = lists.length === 2
+        ? Array.from({ length: Math.max(lists[0].length, lists[1].length) }, (_, index) => [lists[0][index], lists[1][index]]).flat()
+        : lists.flat();
+    return combined.filter(item => {
+        if (!item) return false;
+        if (!media.includes(item.mt) || item.cartoon !== animation || seen.has(item.key)) return false;
+        seen.add(item.key);
+        return true;
+    });
+}
+
+function discoverGenres(type) {
+    const media = type === 'tv' ? 'tv' : 'movie';
+    const selected = new Set(myTasteTags().flatMap(tag => tag.genres || []));
+    const weights = genreWeights();
+    return DC_GENRES[media]
+        .filter(([id]) => id !== 16)
+        .map(([id, title]) => {
+            const ids = TV_GENRE_MAP[id] || [id];
+            const chosen = ids.some(genre => selected.has(genre));
+            const affinity = Math.max(0, ...ids.map(genre => weights.get(genre) || 0));
+            return { id, title, weight: (chosen ? 2 : 0) + affinity };
+        })
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, 3);
+}
+
+function discoverShelf(title, content, action = '') {
+    return `
+        <div class="home-section-header"><h2>${escapeHtml(title)}</h2>${action}</div>
+        <div class="home-row">${content}</div>`;
+}
+
+function renderDiscoverShelf(section, title, list, action) {
+    section.hidden = !list.length;
+    section.innerHTML = list.length ? discoverShelf(title, list.map(item => tcard(item, item.reason)).join(''), action) : '';
+}
+
+function cultRequests(type, page) {
+    return catalogRequests(type, { sort_by: 'vote_count.desc', page });
+}
+
+async function loadDiscover() {
+    const shelves = $('dcShelves');
+    if (!shelves) return;
     const token = ++dc.token;
-    if (reset) {
-        $('dcTaste').hidden = true;
-        dc.page = 1;
-        grid.innerHTML = dcSkeleton();
-        $('dcTrend').hidden = false;
-        $('dcTrendRow').innerHTML = dcSkeleton(4);
-    }
+    const type = dc.type;
+    const current = () => token === dc.token && shelves.isConnected;
+    const trend = $('dcTrend');
+    const cult = $('dcCult');
+    const genreRows = $('dcGenreRows');
+    const cultTitle = DISCOVER_TYPES[type].cult;
+    dc.page = 1;
+    dc.seenCult = new Set();
+    $('dcTaste').hidden = true;
     $('dcMore').hidden = true;
-    try {
-        let cult;
-        if (reset) {
-            const [trend, first] = await tmdbBatch([trendRequest(), cultRequest()]);
-            if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
-            if (first?.error) throw new Error(first.error);
-            const trendList = trend?.error ? [] : browseItems(trend, dc.mt).slice(0, 20);
-            dc.trendKeys = new Set(trendList.map(r => r.key));
-            $('dcTrendRow').innerHTML = trendList.map(r => tcard(r)).join('');
-            $('dcTrend').hidden = !trendList.length;
-            markScrollableRows();
-            if (!dc.genre) fillDiscoverTastes(token);
-            cult = first;
-            grid.innerHTML = '';
-        } else {
-            cult = await tmdbGet(cultRequest().path, cultRequest().params);
-            if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
-        }
-        // То, что уже есть в ряду трендов, в сетке не повторяем
-        const fresh = browseItems(cult, dc.mt).filter(r => !dc.trendKeys.has(r.key));
-        dc.more = cult.page < Math.min(cult.total_pages || 1, 15);
-        grid.insertAdjacentHTML('beforeend', fresh.map(r => tcard(r)).join(''));
-        $('dcMore').hidden = !dc.more;
-    } catch (err) {
-        if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
-        console.error(err);
-        $('dcTrend').hidden = true;
-        grid.innerHTML = `<div class="empty-state error">Не удалось загрузить каталог.<br><button type="button" class="btn-pill" data-dc-retry>Попробовать ещё раз</button></div>`;
+    genreRows.innerHTML = '';
+    for (const [section, title] of [[trend, 'Сейчас в тренде'], [cult, cultTitle]]) {
+        section.hidden = false;
+        section.innerHTML = discoverShelf(title, dcSkeleton(4));
     }
-    updateDcBar();
-}
 
-// «Под ваши интересы» — по выбранному типу, без фильтра жанра
-async function fillDiscoverTastes(token) {
-    const el = $('dcTaste');
-    if (!el || tasteState() !== 'set' || !tastes.tags.length) return;
+    const recent = new Date();
+    recent.setUTCFullYear(recent.getUTCFullYear() - 1);
+    const recentDate = recent.toISOString().slice(0, 10);
+    const trending = type === 'animation'
+        ? catalogRequests(type, { sort_by: 'popularity.desc' }).map((request, index) => ({
+            ...request,
+            params: { ...request.params, [index === 0 ? 'primary_release_date.gte' : 'first_air_date.gte']: recentDate }
+        }))
+        : [{ path: `trending/${type}/week`, params: { language: 'ru-RU' } }];
+    const cultPlans = cultRequests(type, 1);
+    const genres = discoverGenres(type);
+    const genrePlans = genres.flatMap(({ id }) => catalogRequests(type, { sort_by: 'popularity.desc', with_genres: id }));
+    const personal = tasteState() === 'set' && tastes.tags.length
+        ? loadTasteRows(6, type).catch(() => [])
+        : Promise.resolve([]);
     try {
-        const mediaType = dc.mt;
-        const rows = await loadTasteRows(6, mediaType);
-        if (token !== dc.token || !document.contains(el) || dc.q) return;
-        const list = mixTasteRows(rows).filter(r => r.mt === mediaType && !dc.trendKeys.has(r.key)).slice(0, 20);
-        if (!list.length) return;
-        el.innerHTML = `
-            <div class="home-section-header">
-                <div class="section-heading">
-                    <span class="section-kicker">По вашим интересам</span>
-                    <h2>✨ Вам может понравиться</h2>
-                </div>
-                <a class="see-all" href="?view=tastes" data-nav>Изменить</a>
-            </div>
-            <div class="home-row">${list.map(r => tcard(r, r.reason)).join('')}</div>`;
-        el.hidden = false;
+        const results = await tmdbBatch([...trending, ...cultPlans, ...genrePlans]);
+        if (!current()) return;
+        if (results.length === 0 || results.every(result => !result || result.error)) throw new Error('Каталог недоступен');
+        const trendItems = catalogItems(results.slice(0, trending.length), type).slice(0, 18);
+        const cultResults = results.slice(trending.length, trending.length + cultPlans.length);
+        const culture = catalogItems(cultResults, type);
+        const trendKeys = new Set(trendItems.map(item => item.key));
+        const cultItems = culture.filter(item => !trendKeys.has(item.key));
+        dc.seenCult = new Set([...trendItems, ...cultItems].map(item => item.key));
+        renderDiscoverShelf(trend, 'Сейчас в тренде', trendItems);
+        renderDiscoverShelf(cult, cultTitle, cultItems);
+        $('dcMore').hidden = !cultResults.some(result => result?.total_pages > 1);
+        const rowOffset = trending.length + cultPlans.length;
+        const genreItems = genres.map(({ title }, index) => {
+            const start = rowOffset + index * cultPlans.length;
+            return { title, items: catalogItems(results.slice(start, start + cultPlans.length), type).slice(0, 14) };
+        });
+        genreRows.innerHTML = genreItems.filter(row => row.items.length).map(row =>
+            `<section class="home-section">${discoverShelf(row.title, row.items.map(item => tcard(item)).join(''))}</section>`).join('');
+        markScrollableRows();
+        updateDcBar();
+
+        const tastesRows = await personal;
+        if (!current()) return;
+        const tailored = mixTasteRows(tastesRows, 20);
+        const weights = genreWeights();
+        const fallback = [...culture, ...trendItems, ...genreItems.flatMap(row => row.items)]
+            .sort((a, b) => genreAffinity(b.genres, weights) - genreAffinity(a.genres, weights));
+        const seen = new Set();
+        const picks = [...tailored, ...fallback].filter(item => {
+            if (seen.has(item.key) || findOwned(item)) return false;
+            seen.add(item.key);
+            return true;
+        });
+        const title = 'Вам может понравиться';
+        const action = '<a class="see-all" href="?view=tastes" data-nav>Настроить интересы</a>';
+        renderDiscoverShelf($('dcTaste'), title, picks.slice(0, 14), action);
         markScrollableRows();
     } catch (err) {
+        if (!current()) return;
         console.error(err);
+        trend.hidden = true;
+        cult.innerHTML = '<div class="empty-state error">Не удалось загрузить каталог.<br><button type="button" class="btn-pill" data-dc-retry>Попробовать ещё раз</button></div>';
+    }
+}
+
+async function loadMoreCult() {
+    const token = dc.token;
+    const type = dc.type;
+    const more = $('dcMore');
+    const cult = $('dcCult');
+    const page = dc.page + 1;
+    more.disabled = true;
+    try {
+        const results = await tmdbBatch(cultRequests(type, page));
+        if (token !== dc.token || !cult.isConnected) return;
+        if (results.length === 0 || results.every(result => !result || result.error)) throw new Error('Каталог недоступен');
+        const items = catalogItems(results, type).filter(item => !dc.seenCult.has(item.key));
+        items.forEach(item => dc.seenCult.add(item.key));
+        const row = cult.querySelector('.home-row');
+        if (row) row.insertAdjacentHTML('beforeend', items.map(item => tcard(item)).join(''));
+        else renderDiscoverShelf(cult, DISCOVER_TYPES[type].cult, items);
+        dc.page = page;
+        more.hidden = page >= 15 || !results.some(result => result?.total_pages > page);
+        markScrollableRows();
+    } catch {
+        if (token === dc.token && cult.isConnected) toast('Не удалось загрузить ещё. Попробуйте снова.');
+    } finally {
+        more.disabled = false;
     }
 }
 
@@ -484,17 +561,24 @@ async function runSearch(q) {
     const grid = $('dcGrid');
     if (!grid) return;
     const token = ++dc.token;
-    $('dcMore').hidden = true;
+    const type = dc.type;
+    const current = () => token === dc.token && grid.isConnected;
+    const search = async language => {
+        const results = await tmdbBatch(DISCOVER_TYPES[type].media.map(mt => ({
+            path: `search/${mt}`, params: { query: q, language, include_adult: 'false' }
+        })));
+        if (results.length === 0 || results.every(result => !result || result.error)) throw new Error('Поиск недоступен');
+        return catalogItems(results, type);
+    };
     grid.innerHTML = dcSkeleton(6);
     try {
-        let results = await tmdbSearchMulti(q, 'ru-RU');
-        if (!results.length) results = await tmdbSearchMulti(q, 'en-US');
-        if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
-        const list = results.map(raw => tmdbItem(raw, raw.media_type));
-        grid.innerHTML = list.length ? list.map(r => tcard(r)).join('') : '<div class="empty-state">Ничего не нашлось. Попробуйте оригинальное название.</div>';
-    } catch (err) {
-        if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
-        grid.innerHTML = `<div class="empty-state error">${escapeHtml(err.message)}</div>`;
+        let list = await search('ru-RU');
+        if (!current()) return;
+        if (!list.length) list = await search('en-US');
+        if (!current()) return;
+        grid.innerHTML = list.length ? list.map(item => tcard(item)).join('') : '<div class="empty-state">Ничего не нашлось. Попробуйте оригинальное название.</div>';
+    } catch {
+        if (current()) grid.innerHTML = '<div class="empty-state error">Не удалось выполнить поиск.<br><button type="button" class="btn-pill" data-dc-retry>Попробовать ещё раз</button></div>';
     }
 }
 
@@ -885,15 +969,20 @@ document.addEventListener('click', (e) => {
         return;
     }
 
-    const mt = e.target.closest('[data-dc-mt]');
-    if (mt && mt.dataset.dcMt !== dc.mt) { dc.mt = mt.dataset.dcMt; dc.genre = 0; syncDcControls(); loadDiscover(true); return; }
-    const genre = e.target.closest('[data-dc-genre]');
-    if (genre) { dc.genre = Number(genre.dataset.dcGenre); syncDcControls(); loadDiscover(true); return; }
-    if (e.target.closest('[data-dc-more]')) { dc.page++; loadDiscover(false); return; }
+    const tab = e.target.closest('[data-dc-type]');
+    if (tab && tab.dataset.dcType !== dc.type) {
+        dc.type = tab.dataset.dcType;
+        syncDcControls();
+        if (dc.q) runSearch(dc.q); else loadDiscover();
+        return;
+    }
+    if (e.target.closest('[data-dc-more]')) { loadMoreCult(); return; }
     if (e.target.closest('[data-dc-done]')) { finishDiscover(); return; }
     if (e.target.closest('[data-dc-retry]')) {
         recsMemo = null;
-        if (state.view === 'recs') renderRecs(); else loadDiscover(true);
+        if (state.view === 'recs') renderRecs();
+        else if (dc.q) runSearch(dc.q);
+        else loadDiscover();
     }
 });
 
@@ -903,9 +992,10 @@ document.addEventListener('input', (e) => {
     clearTimeout(dcSearchTimer);
     const q = e.target.value.trim();
     dcSearchTimer = setTimeout(() => {
+        if (!e.target.isConnected) return;
         dc.q = q.length >= 2 ? q : '';
         syncDcControls();
-        if (dc.q) runSearch(dc.q); else loadDiscover(true);
+        if (dc.q) runSearch(dc.q); else loadDiscover();
     }, 350);
 });
 

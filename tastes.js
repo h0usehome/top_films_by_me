@@ -285,7 +285,7 @@ async function resolveKeywords(names) {
     return cache;
 }
 
-function tagRequests(tag, keywordIds) {
+function tagRequests(tag, keywordIds, discoverType) {
     const params = { language: 'ru-RU', include_adult: 'false', sort_by: tag.sort || 'vote_count.desc' };
     const genres = [...(tag.genres || [])];
     if (tag.keywords) {
@@ -294,12 +294,21 @@ function tagRequests(tag, keywordIds) {
         else if (tag.fallbackGenres) genres.push(...tag.fallbackGenres);
         else return [];
     }
-    if (genres.length) params.with_genres = genres.join(',');
     if (tag.lang) params.with_original_language = tag.lang;
     if (tag.runtimeMax) { params['with_runtime.lte'] = tag.runtimeMax; params['with_runtime.gte'] = 60; }
     if (tag.minVotes && params.sort_by === 'popularity.desc') params['vote_count.gte'] = tag.minVotes;
-    return (tag.mt || ['movie']).map(mt => {
+    const discoverMedia = discoverType && DISCOVER_TYPES[discoverType].media;
+    const media = discoverMedia ? discoverMedia.filter(mt => !tag.mt || tag.mt.includes(mt)) : tag.mt || ['movie'];
+    return media.flatMap(mt => {
         const p = { ...params };
+        let mediaGenres = genres;
+        if (discoverType && mt === 'tv') {
+            mediaGenres = genres.map(genre => discoverGenreId(genre, mt));
+            if (mediaGenres.some(genre => !DC_GENRES.tv.some(([id]) => id === genre) && !Object.hasOwn(TV_GENRE_MAP, genre))) return [];
+        }
+        if (discoverType === 'animation') mediaGenres = [...new Set([16, ...mediaGenres])];
+        else if (discoverType && !mediaGenres.includes(16)) p.without_genres = 16;
+        if (mediaGenres.length) p.with_genres = mediaGenres.join(',');
         const dateKey = mt === 'tv' ? 'first_air_date' : 'primary_release_date';
         if (tag.from) p[`${dateKey}.gte`] = tag.from;
         if (tag.to) p[`${dateKey}.lte`] = tag.to;
@@ -309,18 +318,16 @@ function tagRequests(tag, keywordIds) {
 }
 
 // Ряды по выбранным темам: до 6 тем, порядок меняется каждый день
-async function loadTasteRows(limit = 6, mediaType) {
+async function loadTasteRows(limit = 6, discoverType) {
     const picked = myTasteTags()
-        .filter(tag => !mediaType || (tag.mt || ['movie']).includes(mediaType))
+        .filter(tag => !discoverType || !tag.mt || tag.mt.some(mt => DISCOVER_TYPES[discoverType].media.includes(mt)))
         .map(tag => ({ tag, order: dailyRandom(`tag:${tag.id}`) }))
         .sort((a, b) => a.order - b.order)
         .slice(0, limit)
         .map(x => x.tag);
     if (!picked.length) return [];
     const keywordIds = await resolveKeywords(picked.flatMap(t => t.keywords || []));
-    const plans = picked.flatMap(tag => tagRequests(tag, keywordIds))
-        .filter(plan => !mediaType || plan.mt === mediaType)
-        .slice(0, 12);
+    const plans = picked.flatMap(tag => tagRequests(tag, keywordIds, discoverType)).slice(0, 12);
     if (!plans.length) return [];
     const results = await tmdbBatch(plans.map(p => p.request));
 
@@ -328,7 +335,8 @@ async function loadTasteRows(limit = 6, mediaType) {
     plans.forEach((plan, idx) => {
         // Исключить язык в TMDB discover нельзя — отсекаем здесь (мультфильмы без аниме)
         const list = cleanResults(results[idx], plan.mt, 20, true, plan.tag.minVotes)
-            .filter(r => !plan.tag.notLang || r.lang !== plan.tag.notLang);
+            .filter(r => (!plan.tag.notLang || r.lang !== plan.tag.notLang)
+                && (!discoverType || (r.mt === plan.mt && r.cartoon === (discoverType === 'animation'))));
         const row = rows.get(plan.tag.id) || { tag: plan.tag, items: [] };
         // фильмы и сериалы одной темы — вперемешку
         const merged = [];
@@ -340,7 +348,7 @@ async function loadTasteRows(limit = 6, mediaType) {
         rows.set(plan.tag.id, row);
     });
     return [...rows.values()]
-        .filter(row => row.items.length >= (mediaType ? 1 : 4))
+        .filter(row => row.items.length >= (discoverType ? 1 : 4))
         .map(row => ({ kicker: 'Вы любите', title: row.tag.label, tagId: row.tag.id, items: row.items.slice(0, 20) }));
 }
 

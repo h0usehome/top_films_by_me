@@ -464,25 +464,12 @@ html.tg .header .back-btn { display: none; }
 }
 .dc-search input:focus { border-color: var(--primary); }
 
-.dc-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
-.dc-tabs button { flex: 1; min-height: 40px; border-radius: 9px; color: var(--muted); font-size: 15px; font-weight: 700; }
+.dc-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-bottom: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.dc-tabs button { flex: 1 0 auto; min-height: 40px; padding: 0 4px; border-radius: 9px; color: var(--muted); font-size: clamp(12px, 3.5vw, 15px); font-weight: 700; white-space: nowrap; }
 .dc-tabs button.active { background: var(--surface-2); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
 
-.dc-chips {
-    display: flex; gap: 8px; margin: 0 calc(-1 * var(--pad)) 16px; padding: 0 var(--pad);
-    overflow-x: auto; scrollbar-width: none;
-}
-.dc-chips::-webkit-scrollbar { display: none; }
-.dc-chip {
-    flex: 0 0 auto; min-height: 36px; padding: 0 14px; border-radius: 18px;
-    background: var(--surface-2); border: 1px solid var(--border);
-    font-size: 14px; font-weight: 600; white-space: nowrap;
-}
-.dc-chip.active { background: var(--primary); border-color: var(--primary); }
-
-.dc-more { display: flex; justify-content: center; margin: 20px 0 8px; }
-.dc-grid-heading { margin: 4px 0 12px; }
-.dc-grid-heading h2 { font-size: 18px; font-weight: 800; line-height: 1.25; }
+.dc-more { display: flex; justify-content: center; margin: -12px 0 20px; }
+.dc-more:has([hidden]) { display: none; }
 .home-row .skeleton { flex: 0 0 var(--row-card); }
 
 /* Панель «Готово» над нижним меню */
@@ -826,7 +813,7 @@ html.tg .header .back-btn { display: none; }
     .sidebar { width: var(--sidebar-w); transform: none; visibility: visible; transition: none; padding-top: 28px; }
     .main { margin-left: var(--sidebar-w); }
     .card-title, .tcard-title { font-size: 15px; }
-    .home-section-header h2, .dc-grid-heading h2 { font-size: 22px; }
+    .home-section-header h2 { font-size: 22px; }
     .home-section { margin-bottom: 36px; }
 }
 
