@@ -227,7 +227,7 @@ function tcard(r, reason = '') {
     <article class="tcard${owned ? ' is-owned' : ''}" data-tkey="${escapeHtml(r.key)}" data-reason="${escapeHtml(reason)}">
         <button type="button" class="tcard-btn" data-dc-pick="${escapeHtml(r.key)}" aria-label="${escapeHtml(label)}">
             ${posterImg(r.poster, { alt: '' })}
-            <span class="tcard-overlay">
+            <span class="tcard-caption">
                 <span class="tcard-title">${escapeHtml(r.title)}</span>
                 <span class="tcard-meta">${escapeHtml([r.year, dcTypeName(r)].filter(Boolean).join(' • '))}</span>
                 ${reason ? `<span class="tcard-reason">${escapeHtml(reason)}</span>` : ''}
@@ -263,19 +263,19 @@ function openPickSheet(r) {
             </div>
         </div>
         ${r.overview ? `<p class="pick-overview">${escapeHtml(r.overview)}</p>` : ''}
-        <div class="pick-label">${rated ? 'Ваша оценка' : 'Смотрели? Поставьте оценку'}</div>
+        ${isMine() ? `<div class="pick-label">${rated ? 'Ваша оценка' : 'Смотрели? Поставьте оценку'}</div>
         <div class="rate-row" role="group" aria-label="Оценка от 1 до 10">
             ${Array.from({ length: 10 }, (_, i) => i + 1).map(n =>
                 `<button type="button" class="rate-btn${owned?.rating === n ? ' active' : ''}" data-dc-rate="${n}">${n}</button>`).join('')}
-        </div>
+        </div>` : ''}
         <div class="sheet-actions">
-            ${rated ? '' : `<button type="button" class="sheet-btn${inWantList(owned) ? ' is-on' : ''}" data-dc-want>
+            ${rated || !isMine() ? '' : `<button type="button" class="sheet-btn${inWantList(owned) ? ' is-on' : ''}" data-dc-want>
                 🔖 ${inWantList(owned) ? 'В списке «Хочу посмотреть»' : 'Хочу посмотреть'}</button>`}
             <button type="button" class="sheet-btn" data-dc-trailer>▶ Трейлер</button>
             ${owned && !owned.pending ? `<button type="button" class="sheet-btn" data-dc-open="${escapeHtml(owned.id)}">Открыть карточку</button>
-                <button type="button" class="sheet-btn sheet-btn-danger" data-dc-remove>Удалить из коллекции</button>` : ''}
+                ${isMine() ? '<button type="button" class="sheet-btn sheet-btn-danger" data-dc-remove>Удалить из коллекции</button>' : ''}` : ''}
         </div>
-        <button type="button" class="sheet-cancel" data-sheet-action="close">${owned ? 'Готово' : 'Не смотрел'}</button>`, 'Оценка фильма');
+        <button type="button" class="sheet-cancel" data-sheet-action="close">${owned || !isMine() ? 'Закрыть' : 'Не смотрел'}</button>`, 'Оценка фильма');
 }
 
 // То же нижнее меню, что и у карточек коллекции (кнопка «Назад» и Esc его закрывают)
@@ -415,6 +415,7 @@ async function loadDiscover(reset) {
     if (!grid) return;
     const token = ++dc.token;
     if (reset) {
+        $('dcTaste').hidden = true;
         dc.page = 1;
         grid.innerHTML = dcSkeleton();
         $('dcTrend').hidden = false;
@@ -425,7 +426,7 @@ async function loadDiscover(reset) {
         let cult;
         if (reset) {
             const [trend, first] = await tmdbBatch([trendRequest(), cultRequest()]);
-            if (token !== dc.token) return;
+            if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
             if (first?.error) throw new Error(first.error);
             const trendList = trend?.error ? [] : browseItems(trend, dc.mt).slice(0, 20);
             dc.trendKeys = new Set(trendList.map(r => r.key));
@@ -437,7 +438,7 @@ async function loadDiscover(reset) {
             grid.innerHTML = '';
         } else {
             cult = await tmdbGet(cultRequest().path, cultRequest().params);
-            if (token !== dc.token) return;
+            if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
         }
         // То, что уже есть в ряду трендов, в сетке не повторяем
         const fresh = browseItems(cult, dc.mt).filter(r => !dc.trendKeys.has(r.key));
@@ -445,22 +446,23 @@ async function loadDiscover(reset) {
         grid.insertAdjacentHTML('beforeend', fresh.map(r => tcard(r)).join(''));
         $('dcMore').hidden = !dc.more;
     } catch (err) {
-        if (token !== dc.token) return;
+        if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
         console.error(err);
         $('dcTrend').hidden = true;
-        grid.innerHTML = `<div class="empty-state error">Не удалось загрузить фильмы.<br><button type="button" class="btn-pill" data-dc-retry>Попробовать ещё раз</button></div>`;
+        grid.innerHTML = `<div class="empty-state error">Не удалось загрузить каталог.<br><button type="button" class="btn-pill" data-dc-retry>Попробовать ещё раз</button></div>`;
     }
     updateDcBar();
 }
 
-// «Под ваши интересы» — между трендами и культовым, только в «Всё»
+// «Под ваши интересы» — по выбранному типу, без фильтра жанра
 async function fillDiscoverTastes(token) {
     const el = $('dcTaste');
     if (!el || tasteState() !== 'set' || !tastes.tags.length) return;
     try {
-        const data = await getRecs();
-        if (token !== dc.token || !document.contains(el)) return;
-        const list = (data.tasteMix || []).filter(r => !dc.trendKeys.has(r.key)).slice(0, 20);
+        const mediaType = dc.mt;
+        const rows = await loadTasteRows(6, mediaType);
+        if (token !== dc.token || !document.contains(el) || dc.q) return;
+        const list = mixTasteRows(rows).filter(r => r.mt === mediaType && !dc.trendKeys.has(r.key)).slice(0, 20);
         if (!list.length) return;
         el.innerHTML = `
             <div class="home-section-header">
@@ -487,11 +489,11 @@ async function runSearch(q) {
     try {
         let results = await tmdbSearchMulti(q, 'ru-RU');
         if (!results.length) results = await tmdbSearchMulti(q, 'en-US');
-        if (token !== dc.token) return;
+        if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
         const list = results.map(raw => tmdbItem(raw, raw.media_type));
         grid.innerHTML = list.length ? list.map(r => tcard(r)).join('') : '<div class="empty-state">Ничего не нашлось. Попробуйте оригинальное название.</div>';
     } catch (err) {
-        if (token !== dc.token) return;
+        if (token !== dc.token || !$('dcGrid')?.isSameNode(grid)) return;
         grid.innerHTML = `<div class="empty-state error">${escapeHtml(err.message)}</div>`;
     }
 }
@@ -810,34 +812,38 @@ async function renderRecs() {
 }
 
 // Ряд «Рекомендуем вам» на главной своей коллекции
-function homeRecsHtml() {
-    return `
-        <div class="home-actions">
-            <a class="btn-pill" href="?view=discover" data-nav>➕ Добавить фильмы</a>
-            <a class="btn-pill" href="?view=recs" data-nav>✨ Рекомендации</a>
-        </div>
-        <section class="home-section" id="homeRecs" hidden></section>`;
-}
-
-async function fillHomeRecs() {
-    const el = $('homeRecs');
-    if (!el) return;
+async function fillSimilar(item) {
+    const section = $('filmSimilar');
+    if (!section) return;
+    const preferredType = item.tmdb_type || (item.type === 'series' ? 'tv' : 'movie');
+    item.similarRequest ||= (async () => {
+        let id = item.tmdb_id;
+        let mediaType = preferredType;
+        if (!id) {
+            const candidates = await tmdbSearchMulti(item.title, 'ru-RU');
+            const match = rankTmdbResults(candidates, preferredType, item.year).find(result =>
+                result.media_type === preferredType
+                && [result.title, result.name, result.original_title, result.original_name]
+                    .some(title => normalizeSearch(title) === normalizeSearch(item.title))
+                && (!item.year || String(item.year) === (result.release_date || result.first_air_date || '').slice(0, 4)));
+            if (!match) return [];
+            id = match.id;
+            mediaType = match.media_type;
+        }
+        const results = await tmdbGet(`${mediaType}/${id}/recommendations`, { language: 'ru-RU' });
+        return browseItems(results, mediaType).filter(result => result.mt === mediaType && result.id !== id).slice(0, 10);
+    })();
     try {
-        const data = await getRecs();
-        if (!document.contains(el)) return;
-        const list = notOwned(data.forYou.length ? data.forYou : data.rows[0]?.items);
-        if (!list.length) return;
-        el.innerHTML = `
-            <div class="home-section-header">
-                <h2><a href="?view=recs" data-nav>✨ Рекомендуем вам</a></h2>
-                <div class="home-recs-links"><a class="see-all" href="?view=tastes" data-nav>Настроить</a>
-                <a class="see-all" href="?view=recs" data-nav>Все →</a></div>
-            </div>
-            <div class="home-row">${list.slice(0, 12).map(r => tcard(r, r.reason || '')).join('')}</div>`;
-        el.hidden = false;
+        const similar = await item.similarRequest;
+        if (!similar.length || !section.isConnected || String(state.film) !== String(item.id)) return;
+        section.innerHTML = `<h3>Похожее</h3><div class="home-row">${similar.map(result => {
+            const owned = findOwned(result);
+            return owned && !owned.pending ? card(owned) : tcard(result);
+        }).join('')}</div>`;
+        section.hidden = false;
         markScrollableRows();
-    } catch (err) {
-        console.error(err);
+    } catch {
+        delete item.similarRequest;
     }
 }
 

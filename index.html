@@ -22,14 +22,14 @@
     <link rel="preconnect" href="https://image.tmdb.org">
     <link rel="preconnect" href="https://avatars.mds.yandex.net">
     <meta name="format-detection" content="telephone=no">
-    <link rel="stylesheet" href="style.css?v=mobile-nav-1">
+    <link rel="stylesheet" href="style.css?v=library-grid-2">
     <script src="config.js" defer></script>
     <script src="common.js" defer></script>
     <script src="tg.js" defer></script>
     <script src="tmdb-helper.js" defer></script>
-    <script src="tastes.js" defer></script>
-    <script src="discover.js?v=mobile-nav-1" defer></script>
-    <script src="app.js?v=mobile-nav-1" defer></script>
+    <script src="tastes.js?v=library-grid-2" defer></script>
+    <script src="discover.js?v=library-grid-2" defer></script>
+    <script src="app.js?v=library-grid-2" defer></script>
 </head>
 <body>
     <a class="skip-link" href="#contentGrid">К содержимому</a>
@@ -104,14 +104,14 @@
     </main>
 
     <nav class="tabbar" aria-label="Основные разделы">
-        <a href="./" data-nav data-key="main" data-also="movies series cartoons collections top100 best new recent rewatch list recs">
+        <a href="./" data-nav data-key="main" data-also="watch movies series cartoons">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9h-6v-6H9v6H3z"/></svg>Главная
         </a>
         <a href="?view=discover" data-nav data-key="discover" data-personal>
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>Найти
         </a>
-        <a href="?view=watch" data-nav data-key="watch" data-personal>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>Хочу посмотреть
+        <a href="?view=collections" data-nav data-key="collections" data-also="top100 best new recent rewatch list recs">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5ZM3 12l9 5 9-5M3 16l9 5 9-5"/></svg>Подборки
         </a>
         <a href="?view=account" data-nav data-key="account" data-also="tastes" data-personal>
             <span class="tab-icon" id="accountTabIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Профиль

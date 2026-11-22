@@ -17,7 +17,6 @@ const LIST_FIELDS = 'id,type,title,poster,year,rating,genres,toprank,customlists
 const PROFILE_FIELDS = 'id,handle,display_name,title,avatar_url';
 const WATCH_TYPES = { all: 'Все', movies: 'Фильмы', series: 'Сериалы', cartoons: 'Мультфильмы' };
 const BOOKMARK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-4-6 4z"/></svg>';
-const HOME_ROW_LIMIT = 10;
 const RECENT_LIMIT = 24;
 const LONG_PRESS_MS = 450;
 
@@ -182,7 +181,7 @@ function stateFromUrl(search = location.search) {
     return {
         view,
         list: view === 'list' ? list : null,
-        type: view === 'watch' && Object.hasOwn(WATCH_TYPES, p.get('type')) ? p.get('type') : 'all',
+        type: ['main', 'watch'].includes(view) && Object.hasOwn(WATCH_TYPES, p.get('type')) ? p.get('type') : 'all',
         q: p.get('q') || '',
         genre: p.get('genre') || 'all',
         sort: p.get('sort') || 'default',
@@ -196,7 +195,7 @@ function urlFor(s) {
     if (s.u) p.set('u', s.u);
     if (s.view === 'list' && s.list) p.set('list', s.list);
     else if (s.view !== 'main') p.set('view', s.view);
-    if (s.view === 'watch' && s.type && s.type !== 'all') p.set('type', s.type);
+    if (['main', 'watch'].includes(s.view) && s.type && s.type !== 'all') p.set('type', s.type);
     if (s.q) p.set('q', s.q);
     if (s.genre !== 'all') p.set('genre', s.genre);
     if (s.sort !== 'default') p.set('sort', s.sort);
@@ -241,7 +240,7 @@ function applyState(next) {
     const viewChanged = viewKey(prev) !== viewKey(next) || prev.q !== next.q
         || prev.genre !== next.genre || prev.sort !== next.sort || prev.type !== next.type;
     if (viewChanged || !$('contentGrid').dataset.ready) renderView();
-    if (viewKey(prev) !== viewKey(next)) window.scrollTo(0, 0);
+    if (viewKey(prev) !== viewKey(next) && !(isLibrary(prev) && isLibrary(next))) window.scrollTo(0, 0);
     if (prev.film !== next.film || !$('modalOverlay').hidden !== Boolean(next.film)) syncModal();
     notifyChange();
 }
@@ -306,18 +305,20 @@ function showLoadError(err) {
         : '<div class="empty-state error">Не удалось загрузить коллекцию. Обновите страницу.</div>';
 }
 
+const isLibrary = ({ view }) => view === 'main' || view === 'watch';
+
 function renderView() {
     const grid = $('contentGrid');
     grid.dataset.ready = '1';
-    if (state.view !== 'watch') renderGenreOptions();
+    renderGenreOptions();
     updateChrome();
 
     if (state.view === 'account' && !state.q) {
         renderAccount();
         return;
     }
-    if (state.view === 'watch') {
-        renderWatchlist();
+    if (isLibrary(state)) {
+        renderLibrary();
         return;
     }
     if (state.view === 'collections' && !state.q) {
@@ -328,7 +329,7 @@ function renderView() {
         renderTastes(false);
         return;
     }
-    if (isMine() && !state.q && ['main', 'discover', 'recs'].includes(state.view)) {
+    if (isMine() && !state.q && ['discover', 'recs'].includes(state.view)) {
         const taste = tasteState();
         if (taste === 'unknown') {
             grid.className = 'grid';
@@ -342,7 +343,7 @@ function renderView() {
         renderRecs();
         return;
     }
-    if ((state.view === 'discover' || (state.view === 'main' && !items.length && isMine())) && !state.q) {
+    if (state.view === 'discover' && !state.q) {
         renderDiscover();
         return;
     }
@@ -350,11 +351,6 @@ function renderView() {
     if (!items.length) {
         grid.className = 'grid';
         grid.innerHTML = '<div class="empty-state">Коллекция пока пуста.</div>';
-        return;
-    }
-
-    if (!state.q && state.view === 'main') {
-        renderHome();
         return;
     }
 
@@ -379,62 +375,48 @@ function renderView() {
     }
 }
 
-function renderWatchlist() {
+function renderLibrary() {
     const grid = $('contentGrid');
-    const saved = itemsForView('watch');
-    renderGenreOptions(saved);
-    $('genreSelect').value = state.genre;
-    const searchMatches = state.q && new Set(searchItems(state.q));
-    const filtered = saved.filter(item =>
-        (!state.type || state.type === 'all' || state.type === item.type)
-        && (state.genre === 'all' || splitList(item.genres).includes(state.genre))
-        && (!searchMatches || searchMatches.has(item)));
+    const watching = state.view === 'watch';
+    const source = items.filter(item => watching ? inWantList(item) : item.rating != null && item.rating !== '' && !inWantList(item));
+    const matches = state.q && new Set(searchItems(state.q));
+    const filtered = source.filter(item => (!state.type || state.type === 'all' || state.type === item.type)
+        && (!matches || matches.has(item))
+        && (state.genre === 'all' || splitList(item.genres).includes(state.genre)));
     const list = state.sort === 'default'
         ? filtered.sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0) || Number(b.id) - Number(a.id))
         : sortItems(filtered, state.sort);
-    $('resultCount').textContent = `Показано ${list.length} из ${saved.length}`;
-    grid.className = 'watch-list';
-    grid.innerHTML = `
-        <nav class="watch-types" aria-label="Тип контента">
-            ${Object.entries(WATCH_TYPES).map(([key, label]) => {
-                const selected = key === (state.type || 'all');
-                return `<a class="btn-pill${selected ? ' btn-pill-primary' : ''}" href="${escapeHtml(urlFor({ ...state, type: key, film: null }))}" data-nav ${selected ? 'aria-current="page"' : ''}>${label}</a>`;
-            }).join('')}
-        </nav>
-        ${list.map(watchRow).join('') || `<div class="empty-state">
-            ${saved.length
-                ? `По этим фильтрам ничего не найдено. <a class="btn-pill" href="${escapeHtml(urlFor({ ...stateFromUrl(''), view: 'watch', u: state.u }))}" data-nav>Сбросить фильтры</a>`
-                : `Список пока пуст.${isMine() ? ' <a class="btn-pill" href="?view=discover" data-nav>Найти фильм</a>' : ''}`}
-        </div>`}`;
-}
 
-function watchRow(item) {
-    const id = escapeHtml(item.id);
-    const link = `href="${escapeHtml(urlFor({ ...state, film: String(item.id) }))}" data-film="${id}"`;
-    const meta = [item.year, typeName(item.type)].filter(Boolean).join(' · ');
-    return `<article class="watch-entry">
-        <a class="watch-poster" ${link} aria-label="${escapeHtml(item.title)}">${posterImg(item.poster, { size: 'small' })}</a>
-        <div class="watch-entry-info">
-            <h2><a ${link}>${escapeHtml(item.title)}</a></h2>
-            <p class="muted">${escapeHtml(meta)}</p>
-            ${isMine() ? `<a class="btn-ghost watch-rate" ${link} data-focus-rating>Поставить оценку</a>` : ''}
-        </div>
-        ${isMine() ? `<button type="button" class="btn-ghost btn-icon film-bookmark is-saved" data-watch-item="${id}" aria-label="Убрать из списка" aria-pressed="true">${BOOKMARK_ICON}</button>` : ''}
-    </article>`;
+    const segments = (entries, current, label, stateFor) => `
+        <nav class="library-segments" aria-label="${label}">
+            ${entries.map(([key, text]) => `<a href="${escapeHtml(urlFor({ ...stateFor(key), film: null }))}" data-nav
+                ${key === current ? 'aria-current="true"' : ''}>${text}</a>`).join('')}
+        </nav>`;
+    grid.className = 'library';
+    grid.innerHTML = `
+        ${ownerBannerHtml()}
+        ${segments([['main', 'Просмотрено'], ['watch', WANT_LIST]], state.view, 'Состояние просмотра',
+            view => ({ ...state, view, genre: 'all', sort: 'default' }))}
+        ${segments(Object.entries(WATCH_TYPES), state.type || 'all', 'Тип контента', type => ({ ...state, type }))}
+        <div class="grid library-grid">
+            ${list.map((item, index) => card(item, index < 8)).join('') || `<div class="empty-state">
+                ${source.length ? 'Ничего не найдено.' : watching ? 'Список пока пуст.' : 'Здесь появятся фильмы, сериалы и мультфильмы, которые вы оцените.'}
+                ${!source.length && isMine() ? '<br><a class="btn-pill" href="?view=discover" data-nav>Найти</a>' : ''}
+            </div>`}
+        </div>`;
 }
 
 function updateChrome() {
-    const isMain = state.view === 'main' && !state.q;
+    const isMain = isLibrary(state) && !state.q;
     const title = state.q ? `Поиск: «${state.q}»`
         : state.view === 'list' ? state.list
         : isMain && !isMine() && owner && owner.handle !== DEFAULT_HANDLE ? collectionTitle()
-        : VIEW_TITLES[state.view];
+        : isMain ? 'Моя коллекция' : VIEW_TITLES[state.view];
     $('pageTitle').textContent = title;
     if (!state.film) document.title = isMain ? collectionTitle() : `${title} — ${collectionTitle()}`;
 
     $('filtersBar').hidden = isMain || (['account', 'collections', 'discover', 'recs', 'tastes'].includes(state.view) && !state.q);
     $('backToMain').hidden = isMain;
-    $('sortSelect').options[0].textContent = state.view === 'watch' ? 'Сначала недавние записи' : 'По умолчанию';
     $('genreSelect').value = state.genre;
     $('sortSelect').value = state.sort;
 
@@ -442,8 +424,7 @@ function updateChrome() {
     if (document.activeElement !== search) search.value = state.q;
     $('header').classList.toggle('search-open', Boolean(state.q) || $('header').classList.contains('search-focus'));
 
-    const key = state.view === 'watch' ? 'watch' : state.q ? null
-        : isMain && isMine() && !items.length ? 'discover' : viewKey(state);
+    const key = viewKey(state);
     document.querySelectorAll('[data-key]').forEach(el => {
         // Вкладка «Подборки» подсвечена и внутри подборки или своего списка
         const also = (el.dataset.also || '').split(' ');
@@ -486,53 +467,10 @@ function ownerBannerHtml() {
             ${avatarHtml(owner, 'avatar-lg')}
             <div class="owner-banner-text">
                 <div class="owner-banner-title">${escapeHtml(collectionTitle())}</div>
-                <div class="owner-banner-sub">${escapeHtml(personName(owner))} · ${items.length} ${plural(items.length, 'запись', 'записи', 'записей')}</div>
+                <div class="owner-banner-sub">${escapeHtml(personName(owner))}</div>
             </div>
             ${action}
         </div>`;
-}
-
-function renderHome() {
-    const grid = $('contentGrid');
-    grid.className = 'home';
-
-    const rated = items.filter(i => i.rating !== null && i.rating !== '');
-    const avg = rated.length ? (rated.reduce((s, i) => s + Number(i.rating), 0) / rated.length).toFixed(1) : '—';
-    const count = (type) => items.filter(i => i.type === type).length;
-    const stats = [
-        [items.length, 'Всего'], [count('movies'), 'Фильмы'], [count('series'), 'Сериалы'],
-        [count('cartoons'), 'Мульты'], [avg, 'Оценка']
-    ];
-
-    const sectionUrl = (patch) => urlFor({ ...stateFromUrl(''), u: state.u, ...patch });
-    const sections = [
-        ['Недавно добавлено', itemsForView('recent'), sectionUrl({ view: 'recent' })],
-        ['Новинки', itemsForView('new'), sectionUrl({ view: 'new' })],
-        ['ТОП 100', topItems(), sectionUrl({ view: 'top100' })],
-        ['Пересматриваем любимое', itemsForView('rewatch'), sectionUrl({ view: 'rewatch' })],
-        ...customLists().filter(name => name !== WANT_LIST).map(name => [name, itemsForView('list', name), sectionUrl({ view: 'list', list: name })])
-    ].filter(([, list]) => list.length);
-
-    grid.innerHTML = `
-        ${ownerBannerHtml()}
-        <nav class="collection-shortcuts" aria-label="Разделы коллекции">
-            ${Object.entries(WATCH_TYPES).filter(([key]) => key !== 'all').map(([view, label]) =>
-                `<a class="btn-pill" href="${escapeHtml(sectionUrl({ view }))}" data-nav>${label}</a>`).join('')}
-            <a class="btn-pill" href="${escapeHtml(sectionUrl({ view: 'collections' }))}" data-nav>Подборки и ТОП‑100</a>
-        </nav>
-        <div class="stats">${stats.map(([v, l]) => `<div class="stat"><div class="stat-value">${v}</div><div class="stat-label">${l}</div></div>`).join('')}</div>
-        ${isMine() ? homeRecsHtml() : ''}
-        ${sections.map(([title, list, href], sIdx) => `
-            <section class="home-section">
-                <div class="home-section-header">
-                    <h2><a href="${escapeHtml(href)}" data-nav>${escapeHtml(title)}</a></h2>
-                    <a class="see-all" href="${escapeHtml(href)}" data-nav>Все ${list.length} →</a>
-                </div>
-                <div class="home-row">${list.slice(0, HOME_ROW_LIMIT).map((i, idx) => card(i, sIdx === 0 && idx < 6)).join('')}</div>
-            </section>`).join('') || '<div class="empty-state">Пока нечего показать.</div>'}
-    `;
-    markScrollableRows();
-    if (isMine()) fillHomeRecs();
 }
 
 function card(item, eager = false) {
@@ -541,7 +479,7 @@ function card(item, eager = false) {
     <article class="card" data-item="${escapeHtml(item.id)}">
         <a class="card-link" href="${escapeHtml(urlFor({ ...state, film: item.id }))}" data-film="${escapeHtml(item.id)}" aria-label="${escapeHtml(label)}">
             ${posterImg(item.poster, { alt: '', lazy: !eager })}
-            <div class="card-overlay">
+            <div class="card-caption">
                 <div class="card-title">${escapeHtml(item.title)}</div>
                 <div class="card-meta">${escapeHtml(item.year || '')} • ${typeName(item.type)}</div>
             </div>
@@ -628,7 +566,7 @@ function renderCollections() {
     const base = { ...stateFromUrl(''), u: state.u };
     const ready = COLLECTIONS
         .map(([view, emoji, hint]) => [view, emoji, hint, itemsForView(view)])
-        .filter(([, , , list]) => list.length)
+        .filter(([view, , , list]) => view === 'top100' || list.length)
         .map(([view, emoji, hint, list]) => collectionTile(urlFor({ ...base, view }), emoji, VIEW_TITLES[view], hint, list));
     const own = customLists().filter(name => name !== WANT_LIST).map(name => {
         const list = itemsForView('list', name);
@@ -640,7 +578,6 @@ function renderCollections() {
     ] : [];
     grid.innerHTML = `
         ${personal.length ? `<h2 class="coll-heading">Для вас</h2><div class="coll-grid">${personal.join('')}</div>` : ''}
-        ${isMine() || items.some(inWantList) ? `<div class="coll-grid">${collectionTile(urlFor({ ...base, view: 'watch' }), '🔖', WANT_LIST, 'Сохранённые фильмы и сериалы', itemsForView('watch'))}</div>` : ''}
         <h2 class="coll-heading">Готовые подборки</h2>
         <div class="coll-grid">${ready.join('') || '<div class="empty-state">Пока пусто.</div>'}</div>
         <h2 class="coll-heading">${isMine() ? 'Мои списки' : 'Списки'}</h2>
@@ -834,6 +771,7 @@ function syncModal() {
     document.title = `${item.title} — ${collectionTitle()}`;
     $('modalBody').innerHTML = filmHtml(item);
     loadFilmBackdrop(item);
+    fillSimilar(item);
     overlay.hidden = false;
     lockScroll();
     $('modalContent').scrollTop = 0;
@@ -897,6 +835,7 @@ function filmHtml(item) {
                     <textarea name="review" rows="4" aria-label="Ваш отзыв">${escapeHtml(item.details?.review || '')}</textarea>
                     <button class="btn-ghost" type="submit">Сохранить отзыв</button>
                 </form>` : ''}
+            <section id="filmSimilar" class="film-similar" hidden></section>
         </div>`;
 }
 
@@ -946,6 +885,7 @@ async function saveFilmPatch(item, patch, message, control, watchLink = false) {
             const scroll = $('modalContent').scrollTop;
             $('modalBody').innerHTML = filmHtml(item);
             loadFilmBackdrop(item);
+            fillSimilar(item);
             $('modalContent').scrollTop = scroll;
             $('modalBody').querySelector(control?.matches('[data-film-rating]') ? '[data-toggle-rating]'
                 : control?.matches('[data-watch-item]') ? '[data-watch-item]' : '[data-review-edit]')?.focus({ preventScroll: true });
@@ -1378,7 +1318,7 @@ let resizeTimer;
 window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-        if (state.view === 'main' && !state.q) markScrollableRows();
+        markScrollableRows();
         if (window.innerWidth < 768 || window.innerWidth >= 1024) hideDrawer();
     }, 150);
 });

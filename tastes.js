@@ -309,15 +309,18 @@ function tagRequests(tag, keywordIds) {
 }
 
 // Ряды по выбранным темам: до 6 тем, порядок меняется каждый день
-async function loadTasteRows(limit = 6) {
+async function loadTasteRows(limit = 6, mediaType) {
     const picked = myTasteTags()
+        .filter(tag => !mediaType || (tag.mt || ['movie']).includes(mediaType))
         .map(tag => ({ tag, order: dailyRandom(`tag:${tag.id}`) }))
         .sort((a, b) => a.order - b.order)
         .slice(0, limit)
         .map(x => x.tag);
     if (!picked.length) return [];
     const keywordIds = await resolveKeywords(picked.flatMap(t => t.keywords || []));
-    const plans = picked.flatMap(tag => tagRequests(tag, keywordIds)).slice(0, 12);
+    const plans = picked.flatMap(tag => tagRequests(tag, keywordIds))
+        .filter(plan => !mediaType || plan.mt === mediaType)
+        .slice(0, 12);
     if (!plans.length) return [];
     const results = await tmdbBatch(plans.map(p => p.request));
 
@@ -337,7 +340,7 @@ async function loadTasteRows(limit = 6) {
         rows.set(plan.tag.id, row);
     });
     return [...rows.values()]
-        .filter(row => row.items.length >= 4)
+        .filter(row => row.items.length >= (mediaType ? 1 : 4))
         .map(row => ({ kicker: 'Вы любите', title: row.tag.label, tagId: row.tag.id, items: row.items.slice(0, 20) }));
 }
 
